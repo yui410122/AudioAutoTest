@@ -24,6 +24,9 @@ class TonePlayCommand(AudioCommand):
     def stop(self):
         self.is_playing = False
 
+    def reset(self):
+        self.is_playing = True
+
 class ToneDetectCommand(AudioCommand):
     def __init__(self, config, framemillis=100, nfft=-1):
         super(ToneDetectCommand, self).__init__(config)
@@ -35,6 +38,9 @@ class ToneDetectCommand(AudioCommand):
 
     def stop(self):
         self.is_detecting = False
+
+    def reset(self):
+        self.is_detecting = True
 
 class AudioCommandThread(threading.Thread):
     def __init__(self, cmd_q):
