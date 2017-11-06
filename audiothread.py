@@ -43,9 +43,9 @@ class ToneDetectCommand(AudioCommand):
         self.is_detecting = True
 
 class AudioCommandThread(threading.Thread):
-    def __init__(self, cmd_q):
+    def __init__(self, cmd_q=None):
         super(AudioCommandThread, self).__init__()
-        self.cmd_q = cmd_q
+        self.cmd_q = cmd_q if cmd_q else queue.Queue()
         self.stoprequest = threading.Event()
 
     def join(self, timeout=None):
@@ -60,6 +60,12 @@ class AudioCommandThread(threading.Thread):
                     self._process_command(cmd)
             except queue.Empty:
                 continue
+
+    def push(self, cmd):
+        if isinstance(cmd, AudioCommand):
+            self.cmd_q.put(cmd)
+        else:
+            raise ValueError("The command type is not AudioCommand.")
 
     def _process_command(self, cmd):
         if type(cmd) is TonePlayCommand:
