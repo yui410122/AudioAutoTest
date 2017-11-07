@@ -1,8 +1,13 @@
 import threading
-import queue
 import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
+
+import sys
+try:
+    import queue
+except ImportError:
+    import Queue as queue
 
 class AudioConfig(object):
     def __init__(self, fs, ch=1, dtype="float32", cb=None):
@@ -47,8 +52,11 @@ class AudioCommandThread(threading.Thread):
         super(AudioCommandThread, self).__init__()
         self.cmd_q = cmd_q if cmd_q else queue.Queue()
         self.stoprequest = threading.Event()
+        self.current_cmd = None
 
     def join(self, timeout=None):
+        if self.current_cmd:
+            self.current_cmd.stop()
         self.stoprequest.set()
         super(AudioCommandThread, self).join(timeout)
 
@@ -57,7 +65,9 @@ class AudioCommandThread(threading.Thread):
             try:
                 cmd = self.cmd_q.get(True, 0.1)
                 if isinstance(cmd, AudioCommand):
+                    self.current_cmd = cmd
                     self._process_command(cmd)
+                    self.current_cmd = None
             except queue.Empty:
                 continue
 
@@ -77,8 +87,17 @@ class AudioCommandThread(threading.Thread):
         phase_offset = 0
         cfg = cmd.config
 
+        # Make the code adaptive to both python 2 and 3
+        shared_vars = {
+            "cmd"         : cmd,
+            "phase_offset": phase_offset
+        }
+
         def playback_cb(outdata, frames, time, status):
-            nonlocal phase_offset, cmd, cfg
+            phase_offset = shared_vars["phase_offset"]
+            cmd = shared_vars["cmd"]
+            cfg = cmd.config
+
             signal = np.arange(outdata.shape[0])
             signal = signal * 2*np.pi/cfg.fs + phase_offset
             phase_offset += outdata.shape[0] * 2*np.pi/cfg.fs
@@ -86,6 +105,9 @@ class AudioCommandThread(threading.Thread):
 
             for cidx in range(outdata.shape[1]):
                 outdata[:, cidx] = signal
+
+            shared_vars["phase_offset"] = phase_offset
+            shared_vars["cmd"] = cmd
 
         with sd.OutputStream(channels=cfg.ch, callback=playback_cb, samplerate=cfg.fs, dtype="float32"):
             while cmd.is_playing:
@@ -96,8 +118,19 @@ class AudioCommandThread(threading.Thread):
         buff = np.array([])
         framesize = int(cfg.fs*cmd.framemillis/1000)
 
+        # Make the code adaptive to both python 2 and 3
+        shared_vars = {
+            "cmd"      : cmd,
+            "buff"     : buff,
+            "framesize": framesize
+        }
+
         def record_cb(indata, frames, time, status):
-            nonlocal cmd, cfg, buff, framesize
+            cmd = shared_vars["cmd"]
+            cfg = cmd.config
+            buff = shared_vars["buff"]
+            framesize = shared_vars["framesize"]
+
             if buff.any():
                 buff = np.vstack((buff, indata[:, :]))
             else:
@@ -112,6 +145,10 @@ class AudioCommandThread(threading.Thread):
                     cfg.cb(detected_tone=max_idx*unit_freq, detected_amp_db=20*np.log10(spectrum[max_idx]))
 
                 buff = buff[framesize:, :]
+
+            shared_vars["cmd"] = cmd
+            shared_vars["buff"] = buff
+            shared_vars["framesize"] = framesize
 
         with sd.InputStream(channels=cfg.ch, callback=record_cb, samplerate=cfg.fs, dtype="float32"):
             while cmd.is_detecting:
