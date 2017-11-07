@@ -3,7 +3,6 @@ import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
 
-import sys
 try:
     import queue
 except ImportError:
