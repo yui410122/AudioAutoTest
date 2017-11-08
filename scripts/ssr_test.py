@@ -20,7 +20,12 @@ FILE_NAMES = [
 
 def push_files_if_needed(serialno):
     out, _ = subprocess.Popen(["adb", "-s", serialno, "shell", "ls", DEVICE_MUSIC_DIR], stdout=subprocess.PIPE).communicate()
-    files = out.splitlines() if out else []
+
+    # The command "adb shell ls" might return several lines of strings where each line lists multiple file names
+    # Then the result should be handled line by line:
+    #           map function for split with spaces and reduce function for concatenate the results of each line
+    files = reduce(lambda x, y: x+y, map(lambda s: s.split(), out.splitlines())) if out else []
+
     for file_to_pushed in FILE_NAMES:
         if file_to_pushed in files:
             continue
