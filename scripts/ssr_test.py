@@ -2,11 +2,15 @@ from com.dtmilano.android.viewclient import ViewClient
 import os
 import subprocess
 import time
-from audiofunction import AudioFunction
+
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
+
+from libs import ROOT_DIR
+from libs.audiofunction import AudioFunction
 
 INTENT_PREFIX = "am broadcast -a"
 HTC_INTENT_PREFIX = "audio.htc.com.intent."
-ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 
 FILE_NAMES = [
