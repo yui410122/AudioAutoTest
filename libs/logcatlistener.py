@@ -11,8 +11,12 @@ class LogcatOutputThread(threading.Thread):
         super(LogcatOutputThread, self).__init__()
         self.daemon = True
         self.msg_q = queue.Queue()
+        self.listeners = {}
         self.stoprequest = threading.Event()
         self.proc = None
+
+    def register_event(self, logcat_event):
+        self.listeners[logcat_event.pattern] = logcat_event
 
     def join(self, timeout=None):
         self.stoprequest.set()
@@ -28,6 +32,17 @@ class LogcatOutputThread(threading.Thread):
                 break
 
             line = self.proc.stdout.readline()
+            self._handle_logcat_msg(line)
+
+    def _handle_logcat_msg(self, msg):
+        for pattern in self.listeners.keys():
+            if pattern in msg:
+                self.listeners[pattern].cb(pattern=pattern, msg=msg)
+
+class LogcatEvent(object):
+    def __init__(self, pattern=None, cb=None):
+        self.pattern = pattern
+        self.cb = cb
 
 class LogcatListener(object):
     WORK_THREADS = {}
@@ -41,13 +56,39 @@ class LogcatListener(object):
                     del LogcatListener.WORK_THREADS[serialno]
 
     @staticmethod
+    def _find_first_device_serialno():
+        out, _ = subprocess.Popen(["adb", "devices"], stdout=subprocess.PIPE).communicate()
+        return out.splitlines()[1].split("\t")[0] if len(out.splitlines()) > 1 else None
+
+    @staticmethod
     def init(serialno=None):
         if not serialno:
-            out, _ = subprocess.Popen(["adb", "devices"], stdout=subprocess.PIPE).communicate()
-            if len(out.splitlines()) > 1:
-                serialno = out.splitlines()[1].split("\t")[0]
+            serialno = LogcatListener._find_first_device_serialno()
+        if not serialno:
+            return
+
+        if serialno in LogcatListener.WORK_THREADS.keys():
+            return
         LogcatListener.WORK_THREADS[serialno] = LogcatOutputThread(serialno)
         LogcatListener.WORK_THREADS[serialno].start()
 
         if len(LogcatListener.WORK_THREADS.keys()) == 1:
             threading.Thread(target=LogcatListener.kill_finished_threads).start()
+
+    @staticmethod
+    def finalize():
+        for serialno, th in LogcatListener.WORK_THREADS.items():
+            th.join()
+            del LogcatListener.WORK_THREADS[serialno]
+
+    @staticmethod
+    def register_event(logcat_event, serialno=None):
+        if not serialno:
+            serialno = LogcatListener._find_first_device_serialno()
+        if not serialno:
+            return
+
+        if isinstance(logcat_event, LogcatEvent):
+            if not serialno in LogcatListener.WORK_THREADS.keys():
+                return
+            LogcatListener.WORK_THREADS[serialno].register_event(logcat_event)
