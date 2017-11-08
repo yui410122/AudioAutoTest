@@ -2,7 +2,7 @@ from com.dtmilano.android.viewclient import ViewClient
 import os
 import subprocess
 import time
-import audiofunction as audfunc
+from audiofunction import AudioFunction
 
 INTENT_PREFIX = "am broadcast -a"
 HTC_INTENT_PREFIX = "audio.htc.com.intent."
@@ -51,7 +51,7 @@ def dev_record_stop(device):
     device.shell(cmd)
 
 def run():
-    audfunc.init()
+    AudioFunction.init()
     os.system("adb start-server > /dev/null")
 
     package = "com.htc.audiofunctionsdemo"
@@ -80,7 +80,7 @@ def run():
     device.startActivity(component=component)
     time.sleep(1)
 
-    audfunc.finalize()
+    AudioFunction.finalize()
 
 if __name__ == "__main__":
     run()

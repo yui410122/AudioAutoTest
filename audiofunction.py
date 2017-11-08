@@ -9,28 +9,31 @@ class CommandHandler(object):
         if self.cmd:
             self.cmd.stop()
 
-WORK_THREAD = AudioCommandThread()
-WORK_THREAD.daemon = True
-AUDIO_CONFIG = AudioConfig(fs=16000, ch=1)
-COMMAND = CommandHandler()
+class AudioFunction(object):
+    WORK_THREAD = AudioCommandThread()
+    WORK_THREAD.daemon = True
+    AUDIO_CONFIG = AudioConfig(fs=16000, ch=1)
+    COMMAND = CommandHandler()
 
-def init():
-    WORK_THREAD.start()
+    @staticmethod
+    def init():
+        AudioFunction.WORK_THREAD.start()
 
-def finalize():
-    WORK_THREAD.join()
+    @staticmethod
+    def finalize():
+        AudioFunction.WORK_THREAD.join()
 
-def play_sound(out_freq):
-    global WORK_THREAD, AUDIO_CONFIG, COMMAND
-    COMMAND.cmd = TonePlayCommand(config=AUDIO_CONFIG, out_freq=out_freq)
-    WORK_THREAD.push(COMMAND.cmd)
+    @staticmethod
+    def play_sound(out_freq):
+        AudioFunction.COMMAND.cmd = TonePlayCommand(config=AudioFunction.AUDIO_CONFIG, out_freq=out_freq)
+        AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
 
-def stop_audio():
-    global COMMAND
-    COMMAND.stop()
+    @staticmethod
+    def stop_audio():
+        AudioFunction.COMMAND.stop()
 
-def start_record(cb):
-    global WORK_THREAD, AUDIO_CONFIG, COMMAND
-    AUDIO_CONFIG.cb = cb
-    COMMAND.cmd = ToneDetectCommand(config=AUDIO_CONFIG, framemillis=100, nfft=4096)
-    WORK_THREAD.push(COMMAND.cmd)
+    @staticmethod
+    def start_record(cb):
+        AudioFunction.AUDIO_CONFIG.cb = cb
+        AudioFunction.COMMAND.cmd = ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=100, nfft=4096)
+        AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
