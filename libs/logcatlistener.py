@@ -1,5 +1,7 @@
 import threading
 import subprocess
+import os
+import signal
 
 try:
     import queue
@@ -33,6 +35,9 @@ class LogcatOutputThread(threading.Thread):
 
             line = self.proc.stdout.readline()
             self._handle_logcat_msg(line)
+
+        if not self.proc.poll():
+            self.proc.kill()
 
     def _handle_logcat_msg(self, msg):
         for pattern in self.listeners.keys():
@@ -79,7 +84,8 @@ class LogcatListener(object):
     def finalize():
         for serialno, th in LogcatListener.WORK_THREADS.items():
             th.join()
-            del LogcatListener.WORK_THREADS[serialno]
+            if serialno in LogcatListener.WORK_THREADS.keys():
+                del LogcatListener.WORK_THREADS[serialno]
 
     @staticmethod
     def register_event(logcat_event, serialno=None):
@@ -91,4 +97,4 @@ class LogcatListener(object):
         if isinstance(logcat_event, LogcatEvent):
             if not serialno in LogcatListener.WORK_THREADS.keys():
                 return
-            LogcatListener.WORK_THREADS[serialno].register_event(logcat_event)
+            LogcatListener.WORK_THREADS[serialno].register_event(logcat_event=logcat_event)
