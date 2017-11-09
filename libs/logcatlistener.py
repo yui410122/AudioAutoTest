@@ -58,7 +58,8 @@ class LogcatListener(object):
             for serialno, th in LogcatListener.WORK_THREADS.items():
                 if th.poll() != None:
                     th.join()
-                    del LogcatListener.WORK_THREADS[serialno]
+                    if serialno in LogcatListener.WORK_THREADS.keys():
+                        del LogcatListener.WORK_THREADS[serialno]
 
     @staticmethod
     def _find_first_device_serialno():
