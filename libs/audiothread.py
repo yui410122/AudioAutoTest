@@ -137,9 +137,9 @@ class AudioCommandThread(threading.Thread):
 
             if buff.size >= framesize:
                 spectrum = np.abs(fft(buff[:framesize, 0], cmd.nfft))
-                spectrum = spectrum[:int(cmd.nfft/2)]
+                spectrum = spectrum[:int(cmd.nfft/2.0)]
                 max_idx = np.argmax(spectrum)
-                unit_freq = cfg.fs / cmd.nfft
+                unit_freq = 1.0*cfg.fs / cmd.nfft
                 if cfg.cb:
                     cfg.cb(detected_tone=max_idx*unit_freq, detected_amp_db=20*np.log10(spectrum[max_idx]))
 
