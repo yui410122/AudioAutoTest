@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AudioFunction
+from libs.audiofunction import AudioFunction, ToneDetectedDecision
 from libs.logger import Logger
 from libs.logcatlistener import LogcatListener, LogcatEvent
 
@@ -67,20 +67,9 @@ def dev_print_detected_tone(device):
     cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "print.properties"])
     device.shell(cmd)
 
-class ToneDetectedDecision(object):
-    def __init__(self, thresh_blocks=3):
-        self.counter = 0
-        self.thresh_blocks = thresh_blocks
-
-    @staticmethod
-    def freq_cb(pattern, msg):
-        freq, amp_db = msg.split()[-1].split(",")
-        print freq
-        print amp_db
-
 def run():
     AudioFunction.init()
-    Logger.init()
+    Logger.init(True)
     os.system("adb start-server > /dev/null")
 
     package = "com.htc.audiofunctionsdemo"
@@ -90,9 +79,7 @@ def run():
     device, serialno = ViewClient.connectToDeviceOrExit()
     vc = ViewClient(device, serialno, autodump=False)
 
-    LogcatListener.init(serialno)
-
-    # push_files_if_needed(serialno)
+    push_files_if_needed(serialno)
 
     if not device.isScreenOn():
         device.wake()
@@ -111,19 +98,31 @@ def run():
     device.startActivity(component=component)
     time.sleep(1)
 
+    Logger.log("ssr_test.py", "dev_record_start")
     dev_record_start(device)
-    logcat_event = LogcatEvent(pattern="AudioFunctionsDemo::properties", cb=ToneDetectedDecision.freq_cb)
-    LogcatListener.register_event(serialno=serialno, logcat_event=logcat_event)
-    AudioFunction.play_sound(out_freq=OUT_FREQ)
     time.sleep(2)
-    dev_print_detected_tone(device)
+
+    def print_cb(event):
+        Logger.log("ssr_test.py", event)
+
+    Logger.log("ssr_test.py", "ToneDetectedDecision.start_listen(serialno={}, target_freq={}, cb=print_cb)".format(serialno, OUT_FREQ))
+    ToneDetectedDecision.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=print_cb)
+    Logger.log("ssr_test.py", "AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
+    AudioFunction.play_sound(out_freq=OUT_FREQ)
+
     time.sleep(3)
-    AudioFunction.stop_audio()
+    Logger.log("ssr_test.py", "trigger_ssr()")
+    trigger_ssr(device)
+    time.sleep(5)
+
+    Logger.log("ssr_test.py", "dev_record_stop")
     dev_record_stop(device)
+
+    Logger.log("ssr_test.py", "ToneDetectedDecision.stop_listen()")
+    ToneDetectedDecision.stop_listen()
 
     AudioFunction.finalize()
     Logger.finalize()
-    LogcatListener.finalize()
 
 if __name__ == "__main__":
     run()
