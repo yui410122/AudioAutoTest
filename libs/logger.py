@@ -79,17 +79,26 @@ class LoggerThread(threading.Thread):
 
 class Logger(object):
     WORK_THREAD = LoggerThread()
+    HAS_BEEN_INIT = False
 
     @staticmethod
     def init(mode=None):
+        if Logger.HAS_BEEN_INIT:
+            return
+
         if mode:
             Logger.WORK_THREAD.to_stdout()
             Logger.WORK_THREAD.max_size = 1
         Logger.WORK_THREAD.start()
+        Logger.HAS_BEEN_INIT = True
 
     @staticmethod
     def finalize():
+        if not Logger.HAS_BEEN_INIT:
+            return
+
         Logger.WORK_THREAD.join()
+        Logger.HAS_BEEN_INIT = False
 
     @staticmethod
     def log(tag, msg):
