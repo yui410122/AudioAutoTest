@@ -25,10 +25,14 @@ class LoggerThread(threading.Thread):
         self.max_size = max_size
         self.current_size = 0
         self.log_dir = log_dir
+        self._to_stdout = False
 
         if len(self.log_dir) < 1 and self.log_dir[-1] != "/":
             self.log_dir += "/"
         self._update_timestamp()
+
+    def to_stdout(self):
+        self._to_stdout = True
 
     def _update_timestamp(self):
         self.log_timestamp = datetime.datetime.now()
@@ -36,10 +40,16 @@ class LoggerThread(threading.Thread):
     def _dump(self):
         t = self.log_timestamp
         self._update_timestamp()
-        filename = "{}{}{}_{}{}{}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
-        with open(self.log_dir + filename, "w") as f:
-            self.msg_stream.seek(0)
-            shutil.copyfileobj(self.msg_stream, f)
+        if self._to_stdout:
+            import sys
+            sys.stdout.write(self.msg_stream.getvalue())
+            sys.stdout.flush()
+        else:
+            filename = "{}{}{}_{}{}{}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
+            with open(self.log_dir + filename, "w") as f:
+                self.msg_stream.seek(0)
+                shutil.copyfileobj(self.msg_stream, f)
+
         self.msg_stream.truncate(0)
 
     def push(self, msg):
@@ -71,7 +81,10 @@ class Logger(object):
     WORK_THREAD = LoggerThread()
 
     @staticmethod
-    def init():
+    def init(mode=None):
+        if mode:
+            Logger.WORK_THREAD.to_stdout()
+            Logger.WORK_THREAD.max_size = 1
         Logger.WORK_THREAD.start()
 
     @staticmethod
