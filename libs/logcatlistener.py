@@ -11,6 +11,7 @@ except ImportError:
 class LogcatOutputThread(threading.Thread):
     def __init__(self, serialno):
         super(LogcatOutputThread, self).__init__()
+        self.serialno = serialno
         self.daemon = True
         self.msg_q = queue.Queue()
         self.listeners = {}
@@ -20,6 +21,10 @@ class LogcatOutputThread(threading.Thread):
     def register_event(self, logcat_event):
         self.listeners[logcat_event.pattern] = logcat_event
 
+    def unregister_event(self, logcat_event):
+        if logcat_event.pattern in self.listeners.keys():
+            del self.listeners[logcat_event.pattern]
+
     def join(self, timeout=None):
         self.stoprequest.set()
         super(LogcatOutputThread, self).join(timeout)
@@ -28,7 +33,7 @@ class LogcatOutputThread(threading.Thread):
         return self.proc.poll() if self.proc else None
 
     def run(self):
-        self.proc = subprocess.Popen(["adb", "logcat"], stdout=subprocess.PIPE)
+        self.proc = subprocess.Popen(["adb", "-s", self.serialno, "logcat"], stdout=subprocess.PIPE)
         while not self.stoprequest.isSet():
             if self.proc.poll() != None:
                 break
@@ -37,7 +42,8 @@ class LogcatOutputThread(threading.Thread):
             self._handle_logcat_msg(line)
 
         if not self.proc.poll():
-            self.proc.kill()
+            try: self.proc.kill()
+            except: pass
 
     def _handle_logcat_msg(self, msg):
         for pattern in self.listeners.keys():
@@ -75,6 +81,7 @@ class LogcatListener(object):
 
         if serialno in LogcatListener.WORK_THREADS.keys():
             return
+
         LogcatListener.WORK_THREADS[serialno] = LogcatOutputThread(serialno)
         LogcatListener.WORK_THREADS[serialno].start()
 
@@ -99,3 +106,15 @@ class LogcatListener(object):
             if not serialno in LogcatListener.WORK_THREADS.keys():
                 return
             LogcatListener.WORK_THREADS[serialno].register_event(logcat_event=logcat_event)
+
+    @staticmethod
+    def unregister_event(logcat_event, serialno=None):
+        if not serialno:
+            serialno = LogcatListener._find_first_device_serialno()
+        if not serialno:
+            return
+
+        if isinstance(logcat_event, LogcatEvent):
+            if not serialno in LogcatListener.WORK_THREADS.keys():
+                return
+            LogcatListener.WORK_THREADS[serialno].unregister_event(logcat_event=logcat_event)
