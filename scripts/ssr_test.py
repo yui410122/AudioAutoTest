@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AATApp, AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
+from libs.audiofunction import AATApp, AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.logcatlistener import LogcatListener, LogcatEvent
 
@@ -86,8 +86,8 @@ def record_task_run(device, serialno, num_iter=1):
     th = DetectionStateChangeListenerThread()
     th.start()
 
-    log("ToneDetectedDecision.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetectedDecision.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
+    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
     log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 
@@ -106,8 +106,8 @@ def record_task_run(device, serialno, num_iter=1):
 
     log("dev_record_stop")
     AATApp.record_stop(device)
-    log("ToneDetectedDecision.stop_listen()")
-    ToneDetectedDecision.stop_listen()
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1

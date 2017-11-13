@@ -46,20 +46,29 @@ class AudioFunction(object):
         AudioFunction.COMMAND.cmd = ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=100, nfft=4096)
         AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
 
-
-class ToneDetectedDecisionThread(threading.Thread):
-    def __init__(self, serialno, target_freq, callback):
-        super(ToneDetectedDecisionThread, self).__init__()
+class ToneDetectorThread(threading.Thread):
+    def __init__(self, target_freq, callback):
+        super(ToneDetectorThread, self).__init__()
         self.daemon = True
         self.stoprequest = threading.Event()
-        self.serialno = serialno
         self.event_counter = 0
         self.target_freq = target_freq
         self.cb = callback
 
     def join(self, timeout=None):
         self.stoprequest.set()
-        super(ToneDetectedDecisionThread, self).join(timeout)
+        super(ToneDetectorThread, self).join(timeout)
+
+    def run(self):
+        raise RuntimeError("The base class does not have implemented run() function.")
+
+class ToneDetectorForDeviceThread(ToneDetectorThread):
+    def __init__(self, serialno, target_freq, callback):
+        super(ToneDetectorForDeviceThread, self).__init__(target_freq=target_freq, callback=callback)
+        self.serialno = serialno
+
+    def join(self, timeout=None):
+        super(ToneDetectorForDeviceThread, self).join(timeout)
 
     def run(self):
         LogcatListener.init(self.serialno)
@@ -84,12 +93,12 @@ class ToneDetectedDecisionThread(threading.Thread):
                 if self.event_counter == 1:
                     shared_vars["start_time"] = time_str
                 if self.event_counter == 10:
-                    self.cb((shared_vars["start_time"], ToneDetectedDecision.Event.TONE_DETECTED))
+                    self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
 
             else:
                 if self.event_counter > 10:
                     shared_vars["start_time"] = None
-                    self.cb((time_str, ToneDetectedDecision.Event.TONE_MISSING))
+                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
                 self.event_counter = 0
 
         logcat_event = LogcatEvent(pattern="AudioFunctionsDemo::properties", cb=freq_cb)
@@ -101,8 +110,18 @@ class ToneDetectedDecisionThread(threading.Thread):
 
         LogcatListener.unregister_event(serialno=self.serialno, logcat_event=logcat_event)
 
+class ToneDetectorForServerThread(ToneDetectorThread):
+    def __init__(self, serialno, target_freq, callback):
+        super(ToneDetectorForDeviceThread, self).__init__(target_freq=target_freq, callback=callback)
 
-class ToneDetectedDecision(object):
+    def join(self, timeout=None):
+        super(ToneDetectorForDeviceThread, self).join(timeout)
+
+    def run(self):
+        # TODO: Implement the listening function for tone detection handling at the server side
+        raise RuntimeError("This function should be implemented.")
+
+class ToneDetector(object):
     WORK_THREAD = None
 
     TIME_STR_FORMAT = "%m-%d %H:%M:%S.%f"
@@ -112,15 +131,18 @@ class ToneDetectedDecision(object):
         TONE_MISSING = "tone missing"
 
     @staticmethod
-    def start_listen(serialno, target_freq, cb):
-        os.system("adb -s {} logcat -c > /dev/null".format(serialno))
-        ToneDetectedDecision.WORK_THREAD = ToneDetectedDecisionThread(serialno=serialno, target_freq=target_freq, callback=cb)
-        ToneDetectedDecision.WORK_THREAD.start()
+    def start_listen(target_freq, cb, serialno=None):
+        if serialno:
+            os.system("adb -s {} logcat -c > /dev/null".format(serialno))
+            ToneDetector.WORK_THREAD = ToneDetectorForDeviceThread(serialno=serialno, target_freq=target_freq, callback=cb)
+        else:
+            ToneDetector.WORK_THREAD = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
+        ToneDetector.WORK_THREAD.start()
 
     @staticmethod
     def stop_listen():
-        ToneDetectedDecision.WORK_THREAD.join()
-        ToneDetectedDecision.WORK_THREAD = None
+        ToneDetector.WORK_THREAD.join()
+        ToneDetector.WORK_THREAD = None
 
 class DetectionStateChangeListenerThread(threading.Thread):
     class Event(object):
@@ -145,11 +167,11 @@ class DetectionStateChangeListenerThread(threading.Thread):
     def _handle_event(self, event):
         if self.current_event and self.current_event[1] != event[1]:
             rising_or_falling = DetectionStateChangeListenerThread.Event.RISING_EDGE \
-                            if event[1] == ToneDetectedDecision.Event.TONE_DETECTED else \
+                            if event[1] == ToneDetector.Event.TONE_DETECTED else \
                                 DetectionStateChangeListenerThread.Event.FALLING_EDGE
 
-            t2 = datetime.datetime.strptime(event[0], ToneDetectedDecision.TIME_STR_FORMAT)
-            t1 = datetime.datetime.strptime(self.current_event[0], ToneDetectedDecision.TIME_STR_FORMAT)
+            t2 = datetime.datetime.strptime(event[0], ToneDetector.TIME_STR_FORMAT)
+            t1 = datetime.datetime.strptime(self.current_event[0], ToneDetector.TIME_STR_FORMAT)
             t_diff = t2 - t1
             self.event_q.put((rising_or_falling, t_diff.total_seconds()*1000.0))
 

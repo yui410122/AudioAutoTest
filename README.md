@@ -38,7 +38,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AATApp, AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
+from libs.audiofunction import AATApp, AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 
 TAG = "example.py"
@@ -89,8 +89,8 @@ def record_task_run(device, serialno):
     th = DetectionStateChangeListenerThread()
     th.start()
 
-    log("ToneDetectedDecision.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetectedDecision.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
+    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
     log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 
@@ -115,8 +115,8 @@ def record_task_run(device, serialno):
     log("dev_record_stop")
     AATApp.record_stop(device)
 
-    log("ToneDetectedDecision.stop_listen()")
-    ToneDetectedDecision.stop_listen()
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
     AudioFunction.stop_audio()
 
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
 ```
 [2017-11-13 16:19:53.724299] example.py: dev_record_start
-[2017-11-13 16:19:55.858921] example.py: ToneDetectedDecision.start_listen(serialno=HT75R1C00120, target_freq=440)
+[2017-11-13 16:19:55.858921] example.py: ToneDetector.start_listen(serialno=HT75R1C00120, target_freq=440)
 [2017-11-13 16:20:02.037908] example.py: AudioFunction.play_sound(out_freq=440)
 [2017-11-13 16:20:03.542540] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-13 16:19:58.386', 'tone detected')
 [2017-11-13 16:20:05.044482] example.py: thread stops the playback
@@ -139,5 +139,5 @@ if __name__ == "__main__":
 [2017-11-13 16:20:10.309406] example.py: Trying to wait a timeout event
 [2017-11-13 16:20:20.322337] example.py: elapsed: -1 ms
 [2017-11-13 16:20:20.322461] example.py: dev_record_stop
-[2017-11-13 16:20:20.422659] example.py: ToneDetectedDecision.stop_listen()
+[2017-11-13 16:20:20.422659] example.py: ToneDetector.stop_listen()
 ```
