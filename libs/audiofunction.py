@@ -3,8 +3,10 @@ import threading
 import numpy as np
 import time
 import os
+import datetime
 
 from libs.logcatlistener import LogcatListener, LogcatEvent
+from libs.logger import Logger
 
 # Initialization of used variables
 class CommandHandler(object):
@@ -103,7 +105,7 @@ class ToneDetectedDecisionThread(threading.Thread):
 class ToneDetectedDecision(object):
     WORK_THREAD = None
 
-    TIME_STR_FORMAT = "%m-%d %I:%M:%S.%f"
+    TIME_STR_FORMAT = "%m-%d %H:%M:%S.%f"
 
     class Event(object):
         TONE_DETECTED = "tone detected"
@@ -119,3 +121,58 @@ class ToneDetectedDecision(object):
     def stop_listen():
         ToneDetectedDecision.WORK_THREAD.join()
         ToneDetectedDecision.WORK_THREAD = None
+
+class DetectionStateChangeListenerThread(threading.Thread):
+    class Event(object):
+        RISING_EDGE = "rising"
+        FALLING_EDGE = "falling"
+
+    def __init__(self):
+        super(DetectionStateChangeListenerThread, self).__init__()
+        self.daemon = True
+        self.stoprequest = threading.Event()
+        self.event_q = queue.Queue()
+        self.current_event = None
+        Logger.init()
+
+    def reset(self):
+        self.current_event = None
+
+    def tone_detected_event_cb(self, event):
+        Logger.log("DetectionStateChangeListenerThread", "tone_detected_event_cb: {}".format(event))
+        self._handle_event(event)
+
+    def _handle_event(self, event):
+        if self.current_event and self.current_event[1] != event[1]:
+            rising_or_falling = DetectionStateChangeListenerThread.Event.RISING_EDGE \
+                            if event[1] == ToneDetectedDecision.Event.TONE_DETECTED else \
+                                DetectionStateChangeListenerThread.Event.FALLING_EDGE
+
+            t2 = datetime.datetime.strptime(event[0], ToneDetectedDecision.TIME_STR_FORMAT)
+            t1 = datetime.datetime.strptime(self.current_event[0], ToneDetectedDecision.TIME_STR_FORMAT)
+            t_diff = t2 - t1
+            self.event_q.put((rising_or_falling, t_diff.total_seconds()*1000.0))
+
+        self.current_event = event
+
+    def wait_for_event(self, event, timeout):
+        cnt = 0
+        while cnt < timeout*10:
+            cnt += 1
+            if self.stoprequest.isSet():
+                return -1
+            try:
+                ev = self.event_q.get(timeout=0.1)
+                if ev[0] == event:
+                    return ev[1]
+            except queue.Empty:
+                pass
+        return -1
+
+    def join(self, timeout=None):
+        self.stoprequest.set()
+        super(DetectionStateChangeListenerThread, self).join(timeout)
+
+    def run(self):
+        while self.stoprequest.isSet():
+            time.sleep(0.1)
