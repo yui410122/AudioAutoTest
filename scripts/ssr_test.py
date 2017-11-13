@@ -42,7 +42,7 @@ def push_files_if_needed(serialno):
 def log(msg):
     Logger.log(TAG, msg)
 
-def run():
+def run(num_iter=1):
     AudioFunction.init()
     Logger.init(True)
     os.system("adb start-server > /dev/null")
@@ -73,12 +73,12 @@ def run():
     device.startActivity(component=component)
     time.sleep(1)
 
-    record_task_run(device, serialno)
+    record_task_run(device, serialno, num_iter=num_iter)
 
     AudioFunction.finalize()
     Logger.finalize()
 
-def record_task_run(device, serialno):
+def record_task_run(device, serialno, num_iter=1):
     log("dev_record_start")
     AATApp.record_start(device)
     time.sleep(2)
@@ -92,20 +92,25 @@ def record_task_run(device, serialno):
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 
     time.sleep(3)
-    log("trigger_ssr()")
-    AATApp.trigger_ssr(device)
-    log("Waiting for SSR recovery")
-    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
-    log("elapsed: {} ms".format(elapsed))
-    log("Trying to wait a timeout event")
-    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.FALLING_EDGE, timeout=10)
-    log("elapsed: {} ms".format(elapsed))
+    for i in range(num_iter):
+        log("record_task #{}".format(i+1))
+        log("trigger_ssr()")
+        AATApp.trigger_ssr(device)
+        log("Waiting for SSR recovery")
+        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        log("elapsed: {} ms".format(elapsed))
+
+        log("AudioFunction.stop_audio()")
+
+    AudioFunction.stop_audio()
 
     log("dev_record_stop")
     AATApp.record_stop(device)
-
     log("ToneDetectedDecision.stop_listen()")
     ToneDetectedDecision.stop_listen()
 
 if __name__ == "__main__":
-    run()
+    num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    # ViewClient tries to access the system arguments, then it might cause RuntimeError
+    if len(sys.argv) > 1: del sys.argv[1:]
+    run(num_iter=num_iter)
