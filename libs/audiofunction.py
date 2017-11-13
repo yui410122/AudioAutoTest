@@ -71,6 +71,8 @@ class ToneDetectedDecisionThread(threading.Thread):
             freq, amp_db = map(float, strs[-1].split(","))
             the_date, the_time = strs[:2]
 
+            time_str = the_date + " " + the_time
+
             diff_semitone = -1
             if freq > 0:
                 diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
@@ -78,14 +80,14 @@ class ToneDetectedDecisionThread(threading.Thread):
             if freq > 0 and diff_semitone < 0.1:
                 self.event_counter += 1
                 if self.event_counter == 1:
-                    shared_vars["start_time"] = the_time
+                    shared_vars["start_time"] = time_str
                 if self.event_counter == 10:
-                    self.cb((shared_vars["start_time"], "tone detected"))
+                    self.cb((shared_vars["start_time"], ToneDetectedDecision.Event.TONE_DETECTED))
 
             else:
                 if self.event_counter > 10:
                     shared_vars["start_time"] = None
-                    self.cb((the_time, "tone missing"))
+                    self.cb((time_str, ToneDetectedDecision.Event.TONE_MISSING))
                 self.event_counter = 0
 
         logcat_event = LogcatEvent(pattern="AudioFunctionsDemo::properties", cb=freq_cb)
@@ -100,6 +102,12 @@ class ToneDetectedDecisionThread(threading.Thread):
 
 class ToneDetectedDecision(object):
     WORK_THREAD = None
+
+    TIME_STR_FORMAT = "%m-%d %I:%M:%S.%f"
+
+    class Event(object):
+        TONE_DETECTED = "tone detected"
+        TONE_MISSING = "tone missing"
 
     @staticmethod
     def start_listen(serialno, target_freq, cb):
