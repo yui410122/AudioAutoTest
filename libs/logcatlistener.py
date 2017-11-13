@@ -33,7 +33,7 @@ class LogcatOutputThread(threading.Thread):
         return self.proc.poll() if self.proc else None
 
     def run(self):
-        self.proc = subprocess.Popen(["adb", "-s", self.serialno, "logcat"], stdout=subprocess.PIPE)
+        self.proc = subprocess.Popen(["adb", "-s", self.serialno, "logcat"], stdout=subprocess.PIPE, preexec_fn=os.setsid)
         while not self.stoprequest.isSet():
             if self.proc.poll() != None:
                 break
@@ -41,9 +41,7 @@ class LogcatOutputThread(threading.Thread):
             line = self.proc.stdout.readline()
             self._handle_logcat_msg(line)
 
-        if not self.proc.poll():
-            try: self.proc.kill()
-            except: pass
+        os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
 
     def _handle_logcat_msg(self, msg):
         for pattern in self.listeners.keys():
