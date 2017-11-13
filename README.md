@@ -64,22 +64,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
+from libs.audiofunction import AATApp, AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
 from libs.logger import Logger
 
 TAG = "example.py"
-
-INTENT_PREFIX = "am broadcast -a"
-HTC_INTENT_PREFIX = "audio.htc.com.intent."
 OUT_FREQ = 440
-
-def dev_record_start(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "record.start", "--ei", "spt_xmax", "1000"])
-    device.shell(cmd)
-
-def dev_record_stop(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "record.stop"])
-    device.shell(cmd)
 
 def log(msg):
     Logger.log(TAG, msg)
@@ -120,7 +109,7 @@ def run():
 
 def record_task_run(device, serialno):
     log("dev_record_start")
-    dev_record_start(device)
+    AATApp.record_start(device)
     time.sleep(2)
 
     th = DetectionStateChangeListenerThread()
@@ -150,7 +139,7 @@ def record_task_run(device, serialno):
     log("elapsed: {} ms".format(elapsed))
 
     log("dev_record_stop")
-    dev_record_stop(device)
+    AATApp.record_stop(device)
 
     log("ToneDetectedDecision.stop_listen()")
     ToneDetectedDecision.stop_listen()

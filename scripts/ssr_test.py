@@ -7,14 +7,12 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
+from libs.audiofunction import AATApp, AudioFunction, ToneDetectedDecision, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.logcatlistener import LogcatListener, LogcatEvent
 
 TAG = "ssr_test.py"
 
-INTENT_PREFIX = "am broadcast -a"
-HTC_INTENT_PREFIX = "audio.htc.com.intent."
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
 
@@ -40,29 +38,6 @@ def push_files_if_needed(serialno):
             os.system("adb -s {} push {} {} > /dev/null".format(serialno, file_path, DEVICE_MUSIC_DIR))
         else:
             raise ValueError("Cannot find the file \"{}\", please place it under the project tree.".format(file_to_pushed))
-
-def trigger_ssr(device):
-    device.shell("asound -crashdsp")
-
-def dev_playback_nonoffload(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "playback.nonoffload", "--es", "file", "440Hz.wav"])
-    device.shell(cmd)
-
-def dev_playback_offload(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "playback.offload", "--es", "file", "440Hz.mp3"])
-    device.shell(cmd)
-
-def dev_playback_stop(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "playback.stop"])
-    device.shell(cmd)
-
-def dev_record_start(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "record.start", "--ei", "spt_xmax", "1000"])
-    device.shell(cmd)
-
-def dev_record_stop(device):
-    cmd = " ".join([INTENT_PREFIX, HTC_INTENT_PREFIX + "record.stop"])
-    device.shell(cmd)
 
 def log(msg):
     Logger.log(TAG, msg)
@@ -105,7 +80,7 @@ def run():
 
 def record_task_run(device, serialno):
     log("dev_record_start")
-    dev_record_start(device)
+    AATApp.record_start(device)
     time.sleep(2)
 
     th = DetectionStateChangeListenerThread()
@@ -118,7 +93,7 @@ def record_task_run(device, serialno):
 
     time.sleep(3)
     log("trigger_ssr()")
-    trigger_ssr(device)
+    AATApp.trigger_ssr(device)
     log("Waiting for SSR recovery")
     elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
@@ -127,7 +102,7 @@ def record_task_run(device, serialno):
     log("elapsed: {} ms".format(elapsed))
 
     log("dev_record_stop")
-    dev_record_stop(device)
+    AATApp.record_stop(device)
 
     log("ToneDetectedDecision.stop_listen()")
     ToneDetectedDecision.stop_listen()
