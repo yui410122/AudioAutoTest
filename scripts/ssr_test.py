@@ -117,6 +117,7 @@ def playback_task_run(device, num_iter=1):
 
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
+    th.join()
 
     log("playback_task_run--")
 
@@ -151,6 +152,7 @@ def record_task_run(device, serialno, num_iter=1):
     AATApp.record_stop(device)
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
+    th.join()
 
     log("record_task_run--")
 
