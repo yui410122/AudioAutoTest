@@ -23,9 +23,14 @@ class AudioFunction(object):
     AUDIO_CONFIG = AudioConfig(fs=16000, ch=1)
     COMMAND = CommandHandler()
 
+    HAS_INIT = False
+
     @staticmethod
     def init():
+        if AudioFunction.HAS_INIT:
+            return
         AudioFunction.WORK_THREAD.start()
+        AudioFunction.HAS_INIT = True
 
     @staticmethod
     def finalize():
@@ -33,6 +38,9 @@ class AudioFunction(object):
 
     @staticmethod
     def play_sound(out_freq):
+        if not AudioFunction.HAS_INIT:
+            raise RuntimeError("The AudioFunction should be initialized before calling APIs")
+        AudioFunction.COMMAND.stop()
         AudioFunction.COMMAND.cmd = TonePlayCommand(config=AudioFunction.AUDIO_CONFIG, out_freq=out_freq)
         AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
 
@@ -42,8 +50,11 @@ class AudioFunction(object):
 
     @staticmethod
     def start_record(cb):
+        if not AudioFunction.HAS_INIT:
+            raise RuntimeError("The AudioFunction should be initialized before calling APIs")
+        AudioFunction.COMMAND.stop()
         AudioFunction.AUDIO_CONFIG.cb = cb
-        AudioFunction.COMMAND.cmd = ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=100, nfft=4096)
+        AudioFunction.COMMAND.cmd = ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=50, nfft=2048)
         AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
 
 class ToneDetectorThread(threading.Thread):
@@ -111,15 +122,45 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         LogcatListener.unregister_event(serialno=self.serialno, logcat_event=logcat_event)
 
 class ToneDetectorForServerThread(ToneDetectorThread):
-    def __init__(self, serialno, target_freq, callback):
-        super(ToneDetectorForDeviceThread, self).__init__(target_freq=target_freq, callback=callback)
+    def __init__(self, target_freq, callback):
+        super(ToneDetectorForServerThread, self).__init__(target_freq=target_freq, callback=callback)
 
     def join(self, timeout=None):
-        super(ToneDetectorForDeviceThread, self).join(timeout)
+        super(ToneDetectorForServerThread, self).join(timeout)
 
     def run(self):
-        # TODO: Implement the listening function for tone detection handling at the server side
-        raise RuntimeError("This function should be implemented.")
+        shared_vars = {
+            "start_time": None
+        }
+
+        def freq_cb(detected_tone, detected_amp_db):
+            time_str = datetime.datetime.strftime(datetime.datetime.now(), ToneDetector.TIME_STR_FORMAT)
+            freq = detected_tone
+
+            diff_semitone = -1
+            if freq > 0:
+                diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
+
+            if freq > 0 and diff_semitone < 0.1:
+                self.event_counter += 1
+                if self.event_counter == 1:
+                    shared_vars["start_time"] = time_str
+                if self.event_counter == 2:
+                    self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+
+            else:
+                if self.event_counter > 10:
+                    shared_vars["start_time"] = None
+                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                self.event_counter = 0
+
+        AudioFunction.start_record(cb=freq_cb)
+
+        while not self.stoprequest.isSet():
+            time.sleep(0.1)
+
+        AudioFunction.stop_audio()
+
 
 class ToneDetector(object):
     WORK_THREAD = None
@@ -146,6 +187,8 @@ class ToneDetector(object):
 
 class DetectionStateChangeListenerThread(threading.Thread):
     class Event(object):
+        ACTIVE = "active"
+        INACTIVE = "inactive"
         RISING_EDGE = "rising"
         FALLING_EDGE = "falling"
 
@@ -165,6 +208,12 @@ class DetectionStateChangeListenerThread(threading.Thread):
         self._handle_event(event)
 
     def _handle_event(self, event):
+        active_or_inactive = DetectionStateChangeListenerThread.Event.ACTIVE \
+                        if event[1] == ToneDetector.Event.TONE_DETECTED else \
+                             DetectionStateChangeListenerThread.Event.INACTIVE
+
+        self.event_q.put((active_or_inactive, 0))
+
         if self.current_event and self.current_event[1] != event[1]:
             rising_or_falling = DetectionStateChangeListenerThread.Event.RISING_EDGE \
                             if event[1] == ToneDetector.Event.TONE_DETECTED else \
@@ -185,6 +234,7 @@ class DetectionStateChangeListenerThread(threading.Thread):
                 return -1
             try:
                 ev = self.event_q.get(timeout=0.1)
+                Logger.log("DetectionStateChangeListenerThread", "get event: {}".format(ev))
                 if ev[0] == event:
                     return ev[1]
             except queue.Empty:
@@ -198,36 +248,3 @@ class DetectionStateChangeListenerThread(threading.Thread):
     def run(self):
         while self.stoprequest.isSet():
             time.sleep(0.1)
-
-class AATApp(object):
-    INTENT_PREFIX = "am broadcast -a"
-    HTC_INTENT_PREFIX = "audio.htc.com.intent."
-
-    @staticmethod
-    def trigger_ssr(device):
-        device.shell("asound -crashdsp")
-
-    @staticmethod
-    def playback_nonoffload(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.nonoffload", "--es", "file", "440Hz.wav"])
-        device.shell(cmd)
-
-    @staticmethod
-    def playback_offload(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.offload", "--es", "file", "440Hz.mp3"])
-        device.shell(cmd)
-
-    @staticmethod
-    def playback_stop(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.stop"])
-        device.shell(cmd)
-
-    @staticmethod
-    def record_start(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "record.start", "--ei", "spt_xmax", "1000"])
-        device.shell(cmd)
-
-    @staticmethod
-    def record_stop(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "record.stop"])
-        device.shell(cmd)
