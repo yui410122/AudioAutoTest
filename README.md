@@ -10,6 +10,7 @@ AudioAutoTest/
 │   └── 440Hz.wav
 ├── install.sh
 ├── libs
+│   ├── aatapp.py
 │   ├── audiofunction.py
 │   ├── audiothread.py
 │   ├── __init__.py
@@ -38,8 +39,9 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AATApp, AudioFunction, ToneDetector, DetectionStateChangeListenerThread
+from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
+from libs.aatapp import AATApp
 
 TAG = "example.py"
 OUT_FREQ = 440
