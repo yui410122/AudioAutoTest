@@ -7,9 +7,9 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
-from libs.audiofunction import AATApp, AudioFunction, ToneDetector, DetectionStateChangeListenerThread
+from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
-from libs.logcatlistener import LogcatListener, LogcatEvent
+from libs.aatapp import AATApp
 
 TAG = "ssr_test.py"
 
@@ -73,12 +73,56 @@ def run(num_iter=1):
     device.startActivity(component=component)
     time.sleep(1)
 
+    playback_task_run(device, num_iter=num_iter)
     record_task_run(device, serialno, num_iter=num_iter)
 
     AudioFunction.finalize()
     Logger.finalize()
 
+def playback_task_run(device, num_iter=1):
+    log("playback_task_run++")
+    th = DetectionStateChangeListenerThread()
+    th.start()
+
+    log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+
+    funcs = {
+        "nonoffload": AATApp.playback_nonoffload,
+        "offload"   : AATApp.playback_offload
+    }
+
+    for i in range(num_iter):
+        log("-------- playback_task #{} --------".format(i+1))
+        for name, func in funcs.items():
+            log("dev_playback_{}_start".format(name))
+            time.sleep(1)
+            th.reset()
+            func(device)
+
+            if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+                log("the tone was not detected, abort the iteration this time...")
+                AATApp.playback_stop(device)
+                continue
+            time.sleep(1)
+
+            log("trigger_ssr()")
+            AATApp.trigger_ssr(device)
+            log("Waiting for SSR recovery")
+            elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+            log("elapsed: {} ms".format(elapsed))
+
+            log("dev_playback_stop")
+            AATApp.playback_stop(device)
+
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
+
+    log("playback_task_run--")
+
 def record_task_run(device, serialno, num_iter=1):
+    log("record_task_run++")
+
     log("dev_record_start")
     AATApp.record_start(device)
     time.sleep(2)
@@ -93,21 +137,22 @@ def record_task_run(device, serialno, num_iter=1):
 
     time.sleep(3)
     for i in range(num_iter):
-        log("record_task #{}".format(i+1))
+        log("-------- record_task #{} --------".format(i+1))
         log("trigger_ssr()")
         AATApp.trigger_ssr(device)
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
 
-        log("AudioFunction.stop_audio()")
-
+    log("AudioFunction.stop_audio()")
     AudioFunction.stop_audio()
 
     log("dev_record_stop")
     AATApp.record_stop(device)
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
+
+    log("record_task_run--")
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
