@@ -44,7 +44,7 @@ def log(msg):
 
 def run(num_iter=1):
     AudioFunction.init()
-    Logger.init(True)
+    Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
     os.system("adb start-server > /dev/null")
 
     package = "com.htc.audiofunctionsdemo"
