@@ -5,15 +5,19 @@ This is a auto-testing framework of audio functions for Android devices.
 ## Repository
 ```
 AudioAutoTest/
-├── AudioFiles
+├── apk
+│   └── debug
+│       ├── audiofunctionsdemo.apk
+│       └── output.json
+├── audiofiles
 │   ├── 440Hz.mp3
 │   └── 440Hz.wav
 ├── install.sh
 ├── libs
+│   ├── __init__.py
 │   ├── aatapp.py
 │   ├── audiofunction.py
 │   ├── audiothread.py
-│   ├── __init__.py
 │   ├── logcatlistener.py
 │   ├── logger.py
 │   └── README.md

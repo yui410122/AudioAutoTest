@@ -7,13 +7,13 @@ class AATApp(object):
         device.shell("asound -crashdsp")
 
     @staticmethod
-    def playback_nonoffload(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.nonoffload", "--es", "file", "440Hz.wav"])
+    def playback_nonoffload(device, filename="440Hz.wav"):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.nonoffload", "--es", "file", filename])
         device.shell(cmd)
 
     @staticmethod
-    def playback_offload(device):
-        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.offload", "--es", "file", "440Hz.mp3"])
+    def playback_offload(device, filename="440Hz.mp3"):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "playback.offload", "--es", "file", filename])
         device.shell(cmd)
 
     @staticmethod
@@ -29,4 +29,19 @@ class AATApp(object):
     @staticmethod
     def record_stop(device):
         cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "record.stop"])
+        device.shell(cmd)
+
+    @staticmethod
+    def voip_start(device):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.start", "--ei", "spt_xmax", "1000"])
+        device.shell(cmd)
+
+    @staticmethod
+    def voip_stop(device):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.stop"])
+        device.shell(cmd)
+
+    @staticmethod
+    def voip_mute_output(device):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.mute.output"])
         device.shell(cmd)
