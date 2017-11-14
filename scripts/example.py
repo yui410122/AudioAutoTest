@@ -47,10 +47,49 @@ def run():
     device.startActivity(component=component)
     time.sleep(1)
 
+    playback_task_run(device)
     record_task_run(device, serialno)
 
     AudioFunction.finalize()
     Logger.finalize()
+
+def playback_task_run(device):
+    log("dev_playback_start(nonoffload)")
+    AATApp.playback_nonoffload(device)
+
+    th = DetectionStateChangeListenerThread()
+    th.start()
+
+    log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+
+    if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+        log("the tone was not detected, abort the function...")
+        AATApp.playback_stop(device)
+        return
+
+    time.sleep(1)
+
+    def dev_stop_then_play():
+        log("thread stops the playback")
+        AATApp.playback_stop(device)
+        time.sleep(4)
+        log("thread starts the playback")
+        AATApp.playback_nonoffload(device)
+        log("thread returns")
+
+    threading.Thread(target=dev_stop_then_play).start()
+    log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
+    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+    log("elapsed: {} ms".format(elapsed))
+
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
+    th.join()
+
+    log("dev_playback_stop(nonoffload)")
+    AATApp.playback_stop(device)
+
 
 def record_task_run(device, serialno):
     log("dev_record_start")
@@ -79,6 +118,9 @@ def record_task_run(device, serialno):
     log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
     elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
+
+    time.sleep(1)
+
     log("Trying to wait a timeout event")
     elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.FALLING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
@@ -88,6 +130,8 @@ def record_task_run(device, serialno):
 
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
+    th.join()
+
     AudioFunction.stop_audio()
 
 
