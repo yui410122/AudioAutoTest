@@ -23,22 +23,26 @@ class AudioFunction(object):
     AUDIO_CONFIG = AudioConfig(fs=16000, ch=1)
     COMMAND = CommandHandler()
 
-    HAS_INIT = False
+    HAS_BEEN_INIT = False
 
     @staticmethod
     def init():
-        if AudioFunction.HAS_INIT:
+        if AudioFunction.HAS_BEEN_INIT:
             return
         AudioFunction.WORK_THREAD.start()
-        AudioFunction.HAS_INIT = True
+        AudioFunction.HAS_BEEN_INIT = True
 
     @staticmethod
     def finalize():
+        if not AudioFunction.HAS_BEEN_INIT:
+            raise RuntimeError("The AudioFunction should be initialized before calling APIs")
         AudioFunction.WORK_THREAD.join()
+
+        AudioFunction.HAS_BEEN_INIT = False
 
     @staticmethod
     def play_sound(out_freq):
-        if not AudioFunction.HAS_INIT:
+        if not AudioFunction.HAS_BEEN_INIT:
             raise RuntimeError("The AudioFunction should be initialized before calling APIs")
         AudioFunction.COMMAND.stop()
         AudioFunction.COMMAND.cmd = TonePlayCommand(config=AudioFunction.AUDIO_CONFIG, out_freq=out_freq)
@@ -50,7 +54,7 @@ class AudioFunction(object):
 
     @staticmethod
     def start_record(cb):
-        if not AudioFunction.HAS_INIT:
+        if not AudioFunction.HAS_BEEN_INIT:
             raise RuntimeError("The AudioFunction should be initialized before calling APIs")
         AudioFunction.COMMAND.stop()
         AudioFunction.AUDIO_CONFIG.cb = cb
