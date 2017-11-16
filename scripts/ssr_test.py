@@ -7,6 +7,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
+from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.aatapp import AATApp
@@ -22,7 +23,7 @@ FILE_NAMES = [
 ]
 
 def push_files_if_needed(serialno):
-    out, _ = subprocess.Popen(["adb", "-s", serialno, "shell", "ls", DEVICE_MUSIC_DIR], stdout=subprocess.PIPE).communicate()
+    out, _ = Adb.execute(cmd=["shell", "ls", DEVICE_MUSIC_DIR], serialno=serialno)
 
     # The command "adb shell ls" might return several lines of strings where each line lists multiple file names
     # Then the result should be handled line by line:
@@ -45,13 +46,13 @@ def log(msg):
 def run(num_iter=1):
     AudioFunction.init()
     Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
-    os.system("adb start-server > /dev/null")
+    Adb.init()
 
     package = "com.htc.audiofunctionsdemo"
     activity = ".activities.MainActivity"
     component = package + "/" + activity
 
-    device, serialno = ViewClient.connectToDeviceOrExit()
+    device, serialno = ViewClient.connectToDeviceOrExit(serialno=None)
     vc = ViewClient(device, serialno, autodump=False)
 
     push_files_if_needed(serialno)
@@ -139,6 +140,12 @@ def record_task_run(device, serialno, num_iter=1):
     time.sleep(3)
     for i in range(num_iter):
         log("-------- record_task #{} --------".format(i+1))
+
+        th.reset()
+        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+            log("the tone was not detected, abort the iteration this time...")
+            continue
+
         log("trigger_ssr()")
         AATApp.trigger_ssr(device)
         log("Waiting for SSR recovery")
@@ -160,4 +167,7 @@ if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     # ViewClient tries to access the system arguments, then it might cause RuntimeError
     if len(sys.argv) > 1: del sys.argv[1:]
-    run(num_iter=num_iter)
+    try:
+        run(num_iter=num_iter)
+    except Exception as e:
+        print(e)

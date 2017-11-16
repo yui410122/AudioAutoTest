@@ -67,7 +67,7 @@ class LogcatListener(object):
 
     @staticmethod
     def _find_first_device_serialno():
-        out, _ = subprocess.Popen(["adb", "devices"], stdout=subprocess.PIPE).communicate()
+        out, _ = Adb.execute(cmd="devices")
         return out.splitlines()[1].split("\t")[0] if len(out.splitlines()) > 1 else None
 
     @staticmethod

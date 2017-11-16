@@ -5,6 +5,7 @@ import time
 import os
 import datetime
 
+from libs.adbutils import Adb
 from libs.logcatlistener import LogcatListener, LogcatEvent
 from libs.logger import Logger
 
@@ -121,6 +122,9 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
 
         while not self.stoprequest.isSet():
             os.system("adb -s {} shell am broadcast -a audio.htc.com.intent.print.properties > /dev/null".format(self.serialno))
+            # TODO: it seems that the Adb APIs probably should not be called constantly during a short period
+            #       therefore, using the primary os.system is preferred currently
+            # Adb.execute(cmd=["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties"], serialno=self.serialno, tolog=False)
             time.sleep(0.01)
 
         LogcatListener.unregister_event(serialno=self.serialno, logcat_event=logcat_event)
@@ -178,7 +182,7 @@ class ToneDetector(object):
     @staticmethod
     def start_listen(target_freq, cb, serialno=None):
         if serialno:
-            os.system("adb -s {} logcat -c > /dev/null".format(serialno))
+            Adb.execute(cmd=["logcat", "-c"], serialno=serialno)
             ToneDetector.WORK_THREAD = ToneDetectorForDeviceThread(serialno=serialno, target_freq=target_freq, callback=cb)
         else:
             ToneDetector.WORK_THREAD = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
@@ -205,7 +209,18 @@ class DetectionStateChangeListenerThread(threading.Thread):
         Logger.init()
 
     def reset(self):
+        # reset function must consider the event handling:
+        #   if the current state is not None, the active/inactive event might have been sent
+        #   and such event should be sent again because it must be same with the case of None -> active
+        #   so the active/inactive event needs to be sent again before setting the current state to None
+        active_or_inactive = None
+        if self.current_event:
+            active_or_inactive = DetectionStateChangeListenerThread.Event.ACTIVE \
+                            if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
+                                 DetectionStateChangeListenerThread.Event.INACTIVE
         self.current_event = None
+        if active_or_inactive:
+            self.event_q.put((active_or_inactive, 0))
 
     def tone_detected_event_cb(self, event):
         Logger.log("DetectionStateChangeListenerThread", "tone_detected_event_cb: {}".format(event))
