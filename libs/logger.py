@@ -48,7 +48,7 @@ class LoggerThread(threading.Thread):
         t = self.log_timestamp
         self._update_timestamp()
         
-        filename = "{}{}{}_{}{}{}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
+        filename = "{}{:02d}{:02d}_{:02d}{:02d}{}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
         with open(self.log_dir + filename, "w") as f:
             self.msg_stream.seek(0)
             shutil.copyfileobj(self.msg_stream, f)
