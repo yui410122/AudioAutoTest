@@ -59,13 +59,14 @@ def run(num_iter=1):
 
     if not device.isScreenOn():
         device.wake()
-        vc.dump()
 
-        import StringIO as sio
-        so = sio.StringIO()
-        vc.traverse(stream=so)
-        if "lockscreen" in so.getvalue():
-            device.unlock()
+    vc.dump()
+
+    import StringIO as sio
+    so = sio.StringIO()
+    vc.traverse(stream=so)
+    if "lockscreen" in so.getvalue():
+        device.unlock()
 
     # keymap reference:
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py

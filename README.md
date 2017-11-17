@@ -67,10 +67,12 @@ import subprocess
 import time
 import threading
 
+# Add the libs to the search path
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
+from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.aatapp import AATApp
@@ -84,7 +86,7 @@ def log(msg):
 def run():
     AudioFunction.init()
     Logger.init(Logger.Mode.STDOUT)
-    os.system("adb start-server > /dev/null")
+    Adb.init()
 
     package = "com.htc.audiofunctionsdemo"
     activity = ".activities.MainActivity"
@@ -95,13 +97,14 @@ def run():
 
     if not device.isScreenOn():
         device.wake()
-        vc.dump()
 
-        import StringIO as sio
-        so = sio.StringIO()
-        vc.traverse(stream=so)
-        if "lockscreen" in so.getvalue():
-            device.unlock()
+    vc.dump()
+
+    import StringIO as sio
+    so = sio.StringIO()
+    vc.traverse(stream=so)
+    if "lockscreen" in so.getvalue():
+        device.unlock()
 
     # keymap reference:
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py
@@ -126,6 +129,7 @@ def playback_task_run(device):
     log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
     ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
 
+    # Waiting for the event of tone detected, blocking with a 5 secs timeout
     if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
         log("the tone was not detected, abort the function...")
         AATApp.playback_stop(device)
@@ -133,6 +137,7 @@ def playback_task_run(device):
 
     time.sleep(1)
 
+    # The thread just stops the playback and then continues
     def dev_stop_then_play():
         log("thread stops the playback")
         AATApp.playback_stop(device)
@@ -143,6 +148,8 @@ def playback_task_run(device):
 
     threading.Thread(target=dev_stop_then_play).start()
     log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
+
+    # Waiting the event that the tone is detected again after the tone is missing
     elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
 
@@ -203,41 +210,43 @@ if __name__ == "__main__":
 ```
 
 ```
-[2017-11-14 19:00:44.178287] example.py: dev_playback_start(nonoffload)
-[2017-11-14 19:00:44.278559] example.py: ToneDetector.start_listen(target_freq=440)
-[2017-11-14 19:00:44.742716] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:00:44.686626', 'tone detected')
-[2017-11-14 19:00:44.758219] DetectionStateChangeListenerThread: get event: ('active', 0)
-[2017-11-14 19:00:45.759623] example.py: thread stops the playback
-[2017-11-14 19:00:45.759733] example.py: Waiting for 440 Hz pure tone detected
-[2017-11-14 19:00:46.191784] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:00:46.186130', 'tone missing')
-[2017-11-14 19:00:46.191900] DetectionStateChangeListenerThread: get event: ('inactive', 0)
-[2017-11-14 19:00:46.191949] DetectionStateChangeListenerThread: get event: ('falling', 1499.504)
-[2017-11-14 19:00:49.860090] example.py: thread starts the playback
-[2017-11-14 19:00:49.923690] example.py: thread returns
-[2017-11-14 19:00:50.339844] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:00:50.292214', 'tone detected')
-[2017-11-14 19:00:50.371318] DetectionStateChangeListenerThread: get event: ('active', 0)
-[2017-11-14 19:00:50.371405] DetectionStateChangeListenerThread: get event: ('rising', 4106.084)
-[2017-11-14 19:00:50.371437] example.py: elapsed: 4106.084 ms
-[2017-11-14 19:00:50.371465] example.py: ToneDetector.stop_listen()
-[2017-11-14 19:00:50.371493] example.py: dev_playback_stop(nonoffload)
-[2017-11-14 19:00:50.471638] example.py: dev_record_start
-[2017-11-14 19:00:52.537983] example.py: ToneDetector.start_listen(serialno=HT75R1C00120, target_freq=440)
-[2017-11-14 19:00:58.750057] example.py: AudioFunction.play_sound(out_freq=440)
-[2017-11-14 19:01:00.029309] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:00:54.672', 'tone detected')
-[2017-11-14 19:01:01.763414] example.py: thread stops the playback
-[2017-11-14 19:01:01.763544] example.py: Waiting for 440 Hz pure tone detected
-[2017-11-14 19:01:01.763657] DetectionStateChangeListenerThread: get event: ('active', 0)
-[2017-11-14 19:01:02.127692] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:00:57.712', 'tone missing')
-[2017-11-14 19:01:02.127852] DetectionStateChangeListenerThread: get event: ('inactive', 0)
-[2017-11-14 19:01:02.127892] DetectionStateChangeListenerThread: get event: ('falling', 3040.0)
-[2017-11-14 19:01:05.764172] example.py: thread starts the playback
-[2017-11-14 19:01:05.764279] example.py: thread returns
-[2017-11-14 19:01:06.829230] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-14 19:01:01.514', 'tone detected')
-[2017-11-14 19:01:06.829327] DetectionStateChangeListenerThread: get event: ('active', 0)
-[2017-11-14 19:01:06.829383] DetectionStateChangeListenerThread: get event: ('rising', 3802.0)
-[2017-11-14 19:01:06.829415] example.py: elapsed: 3802.0 ms
-[2017-11-14 19:01:07.831154] example.py: Trying to wait a timeout event
-[2017-11-14 19:01:17.844611] example.py: elapsed: -1 ms
-[2017-11-14 19:01:17.844748] example.py: dev_record_stop
-[2017-11-14 19:01:17.944896] example.py: ToneDetector.stop_listen()
+[2017-11-17 11:56:56.978264] Adb: exec: ['adb', 'start-server']
+[2017-11-17 11:57:11.915171] example.py: dev_playback_start(nonoffload)
+[2017-11-17 11:57:12.030688] example.py: ToneDetector.start_listen(target_freq=440)
+[2017-11-17 11:57:12.531372] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:12.470539', 'tone detected')
+[2017-11-17 11:57:12.531449] DetectionStateChangeListenerThread: get event: ('active', 0)
+[2017-11-17 11:57:13.532756] example.py: thread stops the playback
+[2017-11-17 11:57:13.532869] example.py: Waiting for 440 Hz pure tone detected
+[2017-11-17 11:57:13.997034] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:13.971802', 'tone missing')
+[2017-11-17 11:57:13.997130] DetectionStateChangeListenerThread: get event: ('inactive', 0)
+[2017-11-17 11:57:13.997184] DetectionStateChangeListenerThread: get event: ('falling', 1501.263)
+[2017-11-17 11:57:17.665619] example.py: thread starts the playback
+[2017-11-17 11:57:17.765829] example.py: thread returns
+[2017-11-17 11:57:18.229904] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:18.172813', 'tone detected')
+[2017-11-17 11:57:18.233318] DetectionStateChangeListenerThread: get event: ('active', 0)
+[2017-11-17 11:57:18.233526] DetectionStateChangeListenerThread: get event: ('rising', 4201.011)
+[2017-11-17 11:57:18.233615] example.py: elapsed: 4201.011 ms
+[2017-11-17 11:57:18.233664] example.py: ToneDetector.stop_listen()
+[2017-11-17 11:57:18.240996] example.py: dev_playback_stop(nonoffload)
+[2017-11-17 11:57:18.356569] example.py: dev_record_start
+[2017-11-17 11:57:20.522989] example.py: ToneDetector.start_listen(serialno=************, target_freq=440)
+[2017-11-17 11:57:20.523152] Adb: exec: ['adb', '-s', '************', 'logcat', '-c']
+[2017-11-17 11:57:26.895166] example.py: AudioFunction.play_sound(out_freq=440)
+[2017-11-17 11:57:28.661583] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:25.628', 'tone detected')
+[2017-11-17 11:57:29.870512] example.py: thread stops the playback
+[2017-11-17 11:57:29.870627] example.py: Waiting for 440 Hz pure tone detected
+[2017-11-17 11:57:29.870684] DetectionStateChangeListenerThread: get event: ('active', 0)
+[2017-11-17 11:57:30.134398] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:28.625', 'tone missing')
+[2017-11-17 11:57:30.134498] DetectionStateChangeListenerThread: get event: ('inactive', 0)
+[2017-11-17 11:57:30.134538] DetectionStateChangeListenerThread: get event: ('falling', 2997.0)
+[2017-11-17 11:57:33.902408] example.py: thread starts the playback
+[2017-11-17 11:57:33.902488] example.py: thread returns
+[2017-11-17 11:57:35.019318] DetectionStateChangeListenerThread: tone_detected_event_cb: ('11-17 11:57:32.562', 'tone detected')
+[2017-11-17 11:57:35.050848] DetectionStateChangeListenerThread: get event: ('active', 0)
+[2017-11-17 11:57:35.050936] DetectionStateChangeListenerThread: get event: ('rising', 3937.0)
+[2017-11-17 11:57:35.050996] example.py: elapsed: 3937.0 ms
+[2017-11-17 11:57:36.052280] example.py: Trying to wait a timeout event
+[2017-11-17 11:57:46.065985] example.py: elapsed: -1 ms
+[2017-11-17 11:57:46.066288] example.py: dev_record_stop
+[2017-11-17 11:57:46.197932] example.py: ToneDetector.stop_listen()
 ```

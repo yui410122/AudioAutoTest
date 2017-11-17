@@ -4,10 +4,12 @@ import subprocess
 import time
 import threading
 
+# Add the libs to the search path
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
+from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.aatapp import AATApp
@@ -21,7 +23,7 @@ def log(msg):
 def run():
     AudioFunction.init()
     Logger.init(Logger.Mode.STDOUT)
-    os.system("adb start-server > /dev/null")
+    Adb.init()
 
     package = "com.htc.audiofunctionsdemo"
     activity = ".activities.MainActivity"
@@ -32,13 +34,14 @@ def run():
 
     if not device.isScreenOn():
         device.wake()
-        vc.dump()
 
-        import StringIO as sio
-        so = sio.StringIO()
-        vc.traverse(stream=so)
-        if "lockscreen" in so.getvalue():
-            device.unlock()
+    vc.dump()
+
+    import StringIO as sio
+    so = sio.StringIO()
+    vc.traverse(stream=so)
+    if "lockscreen" in so.getvalue():
+        device.unlock()
 
     # keymap reference:
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py
@@ -63,6 +66,7 @@ def playback_task_run(device):
     log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
     ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
 
+    # Waiting for the event of tone detected, blocking with a 5 secs timeout
     if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
         log("the tone was not detected, abort the function...")
         AATApp.playback_stop(device)
@@ -70,6 +74,7 @@ def playback_task_run(device):
 
     time.sleep(1)
 
+    # The thread just stops the playback and then continues
     def dev_stop_then_play():
         log("thread stops the playback")
         AATApp.playback_stop(device)
@@ -80,6 +85,8 @@ def playback_task_run(device):
 
     threading.Thread(target=dev_stop_then_play).start()
     log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
+
+    # Waiting the event that the tone is detected again after the tone is missing
     elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
 
