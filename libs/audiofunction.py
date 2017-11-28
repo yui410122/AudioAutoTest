@@ -78,6 +78,16 @@ class ToneDetectorThread(threading.Thread):
     def run(self):
         raise RuntimeError("The base class does not have implemented run() function.")
 
+    def target_detected(self, freq):
+        if freq == 0:
+            return False
+
+        if self.target_freq == None:
+            return True
+
+        diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
+        return diff_semitone < 0.1
+
 class ToneDetectorForDeviceThread(ToneDetectorThread):
     def __init__(self, serialno, target_freq, callback):
         super(ToneDetectorForDeviceThread, self).__init__(target_freq=target_freq, callback=callback)
@@ -100,19 +110,16 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
 
             time_str = the_date + " " + the_time
 
-            diff_semitone = -1
-            if freq > 0:
-                diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
-
-            if freq > 0 and diff_semitone < 0.1:
+            thresh = 10 if self.target_freq else 1
+            if super(ToneDetectorForDeviceThread, self).target_detected(freq):
                 self.event_counter += 1
                 if self.event_counter == 1:
                     shared_vars["start_time"] = time_str
-                if self.event_counter == 10:
+                if self.event_counter == thresh:
                     self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
 
             else:
-                if self.event_counter > 10:
+                if self.event_counter > thresh:
                     shared_vars["start_time"] = None
                     self.cb((time_str, ToneDetector.Event.TONE_MISSING))
                 self.event_counter = 0
@@ -145,19 +152,16 @@ class ToneDetectorForServerThread(ToneDetectorThread):
             time_str = datetime.datetime.strftime(datetime.datetime.now(), ToneDetector.TIME_STR_FORMAT)
             freq = detected_tone
 
-            diff_semitone = -1
-            if freq > 0:
-                diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
-
-            if freq > 0 and diff_semitone < 0.1:
+            thresh = 2 if self.target_freq else 1
+            if super(ToneDetectorForServerThread, self).target_detected(freq):
                 self.event_counter += 1
                 if self.event_counter == 1:
                     shared_vars["start_time"] = time_str
-                if self.event_counter == 2:
+                if self.event_counter == thresh:
                     self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
 
             else:
-                if self.event_counter > 10:
+                if self.event_counter > thresh:
                     shared_vars["start_time"] = None
                     self.cb((time_str, ToneDetector.Event.TONE_MISSING))
                 self.event_counter = 0
@@ -219,6 +223,9 @@ class DetectionStateChangeListenerThread(threading.Thread):
                             if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
                                  DetectionStateChangeListenerThread.Event.INACTIVE
         self.current_event = None
+        with self.event_q.mutex:
+            self.event_q.queue.clear()
+
         if active_or_inactive:
             self.event_q.put((active_or_inactive, 0))
 
