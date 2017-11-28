@@ -42,6 +42,15 @@ class AATApp(object):
         device.shell(cmd)
 
     @staticmethod
+    def voip_use_speaker(device, use=True):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.switch.speaker", "--ez", "use", str(1 if use else 0)])
+        device.shell(cmd)
+
+    @staticmethod
+    def voip_use_receiver(device):
+        AATApp.voip_use_speaker(device, use=False)
+
+    @staticmethod
     def voip_mute_output(device):
         cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.mute.output"])
         device.shell(cmd)
