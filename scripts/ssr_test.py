@@ -16,6 +16,7 @@ TAG = "ssr_test.py"
 
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
+BATCH_SIZE = 10
 
 FILE_NAMES = [
     "440Hz.wav",
@@ -75,8 +76,14 @@ def run(num_iter=1):
     device.startActivity(component=component)
     time.sleep(1)
 
-    playback_task_run(device, num_iter=num_iter)
-    record_task_run(device, serialno, num_iter=num_iter)
+    batch_count = 1
+    while num_iter > 0:
+        log("-------- batch_run #{} --------".format(batch_count))
+        playback_task_run(device, num_iter=min([num_iter, BATCH_SIZE]))
+        record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
+        voip_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
+        num_iter -= BATCH_SIZE
+        batch_count += 1
 
     AudioFunction.finalize()
     Logger.finalize()
@@ -116,7 +123,9 @@ def playback_task_run(device, num_iter=1):
 
             log("dev_playback_stop")
             AATApp.playback_stop(device)
+            th.wait_for_event(DetectionStateChangeListenerThread.Event.INACTIVE, timeout=5)
 
+    log("-------- playback_task done --------")
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
     th.join()
@@ -153,16 +162,93 @@ def record_task_run(device, serialno, num_iter=1):
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
 
+    log("-------- record_task done --------")
     log("AudioFunction.stop_audio()")
     AudioFunction.stop_audio()
 
     log("dev_record_stop")
     AATApp.record_stop(device)
+    time.sleep(5)
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
     th.join()
 
     log("record_task_run--")
+
+def voip_task_run(device, serialno, num_iter=1):
+    log("voip_task_run++")
+
+    # AATApp.voip_use_speaker(device)
+    time.sleep(2)
+
+    th = DetectionStateChangeListenerThread()
+    th.start()
+
+    log("ToneDetector.start_listen(target_freq={})".format(serialno, OUT_FREQ))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+
+    AATApp.voip_start(device)
+    for i in range(num_iter):
+        log("-------- dev_voip_rx_task #{} --------".format(i+1))
+        time.sleep(1)
+        th.reset()
+
+        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+            log("the tone was not detected, abort the iteration this time...")
+            continue
+        time.sleep(1)
+
+        log("trigger_ssr()")
+        AATApp.trigger_ssr(device)
+        log("Waiting for SSR recovery")
+        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        log("elapsed: {} ms".format(elapsed))
+
+    log("-------- dev_voip_rx_task done --------")
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
+    th.join()
+
+    th = DetectionStateChangeListenerThread()
+    th.start()
+
+    time.sleep(2)
+    AATApp.voip_mute_output(device)
+    time.sleep(10)
+    log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, None))
+    ToneDetector.start_listen(serialno=serialno, target_freq=None, cb=lambda event: th.tone_detected_event_cb(event))
+
+    for i in range(num_iter):
+        log("-------- dev_voip_tx_task #{} --------".format(i+1))
+        time.sleep(2)
+
+        log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
+        AudioFunction.play_sound(out_freq=OUT_FREQ)
+
+        th.reset()
+        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+            log("the tone was not detected, abort the iteration this time...")
+            continue
+        time.sleep(2)
+
+        log("trigger_ssr()")
+        AATApp.trigger_ssr(device)
+        log("Waiting for SSR recovery")
+        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        log("elapsed: {} ms".format(elapsed))
+
+        log("AudioFunction.stop_audio()")
+        AudioFunction.stop_audio()
+
+    log("-------- dev_voip_tx_task done --------")
+    log("dev_voip_stop")
+    AATApp.voip_stop(device)
+    time.sleep(5)
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
+    th.join()
+
+    log("voip_task_run--")
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
