@@ -13,16 +13,18 @@ except ImportError:
     import StringIO as sio
 
 class LoggerThread(threading.Thread):
-    MAX_SIZE = 1000
+    MAX_SIZE = 10000
+    BUF_SIZE = 10
     LOG_DIR = ROOT_DIR + "/log/"
 
-    def __init__(self, max_size=MAX_SIZE, log_dir=LOG_DIR):
+    def __init__(self, max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
         super(LoggerThread, self).__init__()
         self.daemon = True
         self.msg_q = queue.Queue()
         self.stoprequest = threading.Event()
         self.msg_stream = sio.StringIO()
         self.max_size = max_size
+        self.buf_size = buf_size
         self.current_size = 0
         self.log_dir = log_dir
         self._to_stdout = False
@@ -46,10 +48,9 @@ class LoggerThread(threading.Thread):
             return
 
         t = self.log_timestamp
-        self._update_timestamp()
         
-        filename = "{}{:02d}{:02d}_{:02d}{:02d}{}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
-        with open(self.log_dir + filename, "w") as f:
+        filename = "{}{:02d}{:02d}_{:02d}{:02d}{:02d}.log".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
+        with open(self.log_dir + filename, "a") as f:
             self.msg_stream.seek(0)
             shutil.copyfileobj(self.msg_stream, f)
 
@@ -76,9 +77,13 @@ class LoggerThread(threading.Thread):
                     sys.stdout.flush()
 
                 self.current_size += 1
+                if self.current_size % self.buf_size == 0:
+                    self._dump()
+
                 if self.current_size >= self.max_size:
                     self._dump()
                     self.current_size = 0
+                    self._update_timestamp()
 
             except queue.Empty:
                 continue
