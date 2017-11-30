@@ -2,6 +2,8 @@ from com.dtmilano.android.viewclient import ViewClient
 import os
 import subprocess
 import time
+import datetime
+import json
 
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
@@ -16,7 +18,7 @@ TAG = "ssr_test.py"
 
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
-BATCH_SIZE = 10
+BATCH_SIZE = 5
 
 FILE_NAMES = [
     "440Hz.wav",
@@ -49,6 +51,10 @@ def run(num_iter=1):
     Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
     Adb.init()
 
+    os.system("mkdir -p {}/ssr_report > /dev/null".format(ROOT_DIR))
+    t = datetime.datetime.now()
+    filename = "report_{}{:02d}{:02d}_{:02d}{:02d}{:02d}.json".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
+
     package = "com.htc.audiofunctionsdemo"
     activity = ".activities.MainActivity"
     component = package + "/" + activity
@@ -76,20 +82,32 @@ def run(num_iter=1):
     device.startActivity(component=component)
     time.sleep(1)
 
+    trials = []
     batch_count = 1
     while num_iter > 0:
         log("-------- batch_run #{} --------".format(batch_count))
-        playback_task_run(device, num_iter=min([num_iter, BATCH_SIZE]))
-        record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
-        voip_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
+        trials_batch = []
+        trials_batch += playback_task_run(device, num_iter=min([num_iter, BATCH_SIZE]))
+        trials_batch += record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
+        trials_batch += voip_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
+
+        map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
+        trials += trials_batch
+        with open("{}/ssr_report/{}".format(ROOT_DIR, filename), "w") as f:
+            f.write(json.dumps( map(lambda trial: trial.ds, trials), indent=4 ))
+
         num_iter -= BATCH_SIZE
         batch_count += 1
 
     AudioFunction.finalize()
     Logger.finalize()
 
+
 def playback_task_run(device, num_iter=1):
     log("playback_task_run++")
+
+    trials = []
+
     th = DetectionStateChangeListenerThread()
     th.start()
 
@@ -104,6 +122,9 @@ def playback_task_run(device, num_iter=1):
     for i in range(num_iter):
         log("-------- playback_task #{} --------".format(i+1))
         for name, func in funcs.items():
+            trial = Trial(taskname="playback_{}".format(name))
+            trial.put_extra(name="iter_id", value=i+1)
+
             log("dev_playback_{}_start".format(name))
             time.sleep(1)
             th.reset()
@@ -112,6 +133,8 @@ def playback_task_run(device, num_iter=1):
             if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
                 log("the tone was not detected, abort the iteration this time...")
                 AATApp.playback_stop(device)
+                trial.invalidate(errormsg="early return, possible reason: rx no sound")
+                trials.append(trial)
                 continue
             time.sleep(1)
 
@@ -120,6 +143,9 @@ def playback_task_run(device, num_iter=1):
             log("Waiting for SSR recovery")
             elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
             log("elapsed: {} ms".format(elapsed))
+
+            trial.put_extra(name="elapsed", value=elapsed)
+            trials.append(trial)
 
             log("dev_playback_stop")
             AATApp.playback_stop(device)
@@ -131,9 +157,12 @@ def playback_task_run(device, num_iter=1):
     th.join()
 
     log("playback_task_run--")
+    return trials
 
 def record_task_run(device, serialno, num_iter=1):
     log("record_task_run++")
+
+    trials = []
 
     log("dev_record_start")
     AATApp.record_start(device)
@@ -151,9 +180,14 @@ def record_task_run(device, serialno, num_iter=1):
     for i in range(num_iter):
         log("-------- record_task #{} --------".format(i+1))
 
+        trial = Trial(taskname="record")
+        trial.put_extra(name="iter_id", value=i+1)
+
         th.reset()
         if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
+            trial.invalidate(errormsg="early return, possible reason: tx no sound")
+            trials.append(trial)
             continue
 
         log("trigger_ssr()")
@@ -161,6 +195,9 @@ def record_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+
+        trial.put_extra(name="elapsed", value=elapsed)
+        trials.append(trial)
 
     log("-------- record_task done --------")
     log("AudioFunction.stop_audio()")
@@ -174,9 +211,12 @@ def record_task_run(device, serialno, num_iter=1):
     th.join()
 
     log("record_task_run--")
+    return trials
 
 def voip_task_run(device, serialno, num_iter=1):
     log("voip_task_run++")
+
+    trials = []
 
     # AATApp.voip_use_speaker(device)
     time.sleep(2)
@@ -190,11 +230,17 @@ def voip_task_run(device, serialno, num_iter=1):
     AATApp.voip_start(device)
     for i in range(num_iter):
         log("-------- dev_voip_rx_task #{} --------".format(i+1))
+
+        trial = Trial(taskname="voip_rx")
+        trial.put_extra(name="iter_id", value=i+1)
+
         time.sleep(1)
         th.reset()
 
         if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
+            trial.invalidate(errormsg="early return, possible reason: rx no sound")
+            trials.append(trial)
             continue
         time.sleep(1)
 
@@ -203,6 +249,9 @@ def voip_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+
+        trial.put_extra(name="elapsed", value=elapsed)
+        trials.append(trial)
 
     log("-------- dev_voip_rx_task done --------")
     log("ToneDetector.stop_listen()")
@@ -220,6 +269,10 @@ def voip_task_run(device, serialno, num_iter=1):
 
     for i in range(num_iter):
         log("-------- dev_voip_tx_task #{} --------".format(i+1))
+
+        trial = Trial(taskname="voip_tx")
+        trial.put_extra(name="iter_id", value=i+1)
+
         time.sleep(2)
 
         log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
@@ -228,6 +281,8 @@ def voip_task_run(device, serialno, num_iter=1):
         th.reset()
         if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
+            trial.invalidate(errormsg="early return, possible reason: tx no sound")
+            trials.append(trial)
             continue
         time.sleep(2)
 
@@ -236,6 +291,9 @@ def voip_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+
+        trial.put_extra(name="elapsed", value=elapsed)
+        trials.append(trial)
 
         log("AudioFunction.stop_audio()")
         AudioFunction.stop_audio()
@@ -249,6 +307,29 @@ def voip_task_run(device, serialno, num_iter=1):
     th.join()
 
     log("voip_task_run--")
+    return trials
+
+
+class Trial(object):
+    def __init__(self, taskname=None):
+        self.ds = {
+            "task": taskname,
+            "timestamp": str(datetime.datetime.now()),
+            "status": "valid",
+            "error-msg": None,
+            "extra": None
+        }
+
+    def put_extra(self, name, value):
+        if self.ds["extra"] == None:
+            self.ds["extra"] = {}
+
+        self.ds["extra"][name] = value
+
+    def invalidate(self, errormsg):
+        self.ds["status"] = "invalid"
+        self.ds["error-msg"] = errormsg
+
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
