@@ -3,7 +3,6 @@ import os
 import subprocess
 import time
 import datetime
-import json
 
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
@@ -13,6 +12,7 @@ from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
 from libs.aatapp import AATApp
+from libs.trials import Trial, TrialHelper
 
 TAG = "ssr_test.py"
 
@@ -94,7 +94,7 @@ def run(num_iter=1):
         map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
         trials += trials_batch
         with open("{}/ssr_report/{}".format(ROOT_DIR, filename), "w") as f:
-            f.write(json.dumps( map(lambda trial: trial.ds, trials), indent=4 ))
+            f.write(TrialHelper.to_json(trials))
 
         num_iter -= BATCH_SIZE
         batch_count += 1
@@ -308,28 +308,6 @@ def voip_task_run(device, serialno, num_iter=1):
 
     log("voip_task_run--")
     return trials
-
-
-class Trial(object):
-    def __init__(self, taskname=None):
-        self.ds = {
-            "task": taskname,
-            "timestamp": str(datetime.datetime.now()),
-            "status": "valid",
-            "error-msg": None,
-            "extra": None
-        }
-
-    def put_extra(self, name, value):
-        if self.ds["extra"] == None:
-            self.ds["extra"] = {}
-
-        self.ds["extra"][name] = value
-
-    def invalidate(self, errormsg):
-        self.ds["status"] = "invalid"
-        self.ds["error-msg"] = errormsg
-
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1

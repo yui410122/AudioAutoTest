@@ -20,6 +20,7 @@ AudioAutoTest/
 │   ├── audiothread.py
 │   ├── logcatlistener.py
 │   ├── logger.py
+│   ├── trials.py
 │   └── README.md
 ├── README.md
 ├── requirements.txt
