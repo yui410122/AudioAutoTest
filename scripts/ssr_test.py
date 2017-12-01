@@ -143,6 +143,8 @@ def playback_task_run(device, num_iter=1):
             log("Waiting for SSR recovery")
             elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
             log("elapsed: {} ms".format(elapsed))
+            if elapsed >= 0:
+                time.sleep(10 - elapsed/1000.0)
 
             trial.put_extra(name="elapsed", value=elapsed)
             trials.append(trial)
@@ -195,6 +197,8 @@ def record_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+        if elapsed >= 0:
+            time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
         trials.append(trial)
@@ -249,6 +253,8 @@ def voip_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+        if elapsed >= 0:
+            time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
         trials.append(trial)
@@ -291,6 +297,8 @@ def voip_task_run(device, serialno, num_iter=1):
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
+        if elapsed >= 0:
+            time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
         trials.append(trial)
