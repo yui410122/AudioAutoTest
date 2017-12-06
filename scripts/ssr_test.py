@@ -19,6 +19,7 @@ TAG = "ssr_test.py"
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
 BATCH_SIZE = 5
+PARTIAL_RAMDUMP_ENABLED = True
 
 FILE_NAMES = [
     "440Hz.wav",
@@ -46,6 +47,30 @@ def push_files_if_needed(serialno):
 def log(msg):
     Logger.log(TAG, msg)
 
+import StringIO as sio
+def wake_device(device, serialno):
+    if device.isScreenOn():
+        return
+
+    device.wake()
+    vc = ViewClient(device, serialno, autodump=False)
+    try:
+        vc.dump(sleep=0)
+        so = sio.StringIO()
+        vc.traverse(stream=so)
+
+        if "lockscreen" in so.getvalue():
+            device.unlock()
+    except:
+        pass
+
+def handle_ssr_ui():
+    elapsed = SSRDumpListener.wait_for_dialog(timeout=60)
+    log("SSR dialog shows: {} (elapsed {} ms)".format(SSRDumpListener.WORK_THREAD.state, elapsed))
+    if elapsed > 0:
+        SSRDumpListener.dismiss_dialog()
+        log("dismiss SSR dialog")
+
 def run(num_iter=1):
     AudioFunction.init()
     Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
@@ -60,20 +85,8 @@ def run(num_iter=1):
     component = package + "/" + activity
 
     device, serialno = ViewClient.connectToDeviceOrExit(serialno=None)
-    vc = ViewClient(device, serialno, autodump=False)
-
-    push_files_if_needed(serialno)
-
-    if not device.isScreenOn():
-        device.wake()
-
-    vc.dump()
-
-    import StringIO as sio
-    so = sio.StringIO()
-    vc.traverse(stream=so)
-    if "lockscreen" in so.getvalue():
-        device.unlock()
+    wake_device(device, serialno)
+    SSRDumpListener.init(device, serialno)
 
     # keymap reference:
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py
@@ -101,6 +114,7 @@ def run(num_iter=1):
 
     AudioFunction.finalize()
     Logger.finalize()
+    SSRDumpListener.finalize()
 
 
 def playback_task_run(device, num_iter=1):
@@ -128,6 +142,7 @@ def playback_task_run(device, num_iter=1):
             log("dev_playback_{}_start".format(name))
             time.sleep(1)
             th.reset()
+            log("reset DetectionStateChangeListener")
             func(device)
 
             if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
@@ -140,10 +155,19 @@ def playback_task_run(device, num_iter=1):
 
             log("trigger_ssr()")
             AATApp.trigger_ssr(device)
+
+            if PARTIAL_RAMDUMP_ENABLED:
+                handle_ssr_ui()
+
             log("Waiting for SSR recovery")
             elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
             log("elapsed: {} ms".format(elapsed))
-            if elapsed >= 0:
+
+            if PARTIAL_RAMDUMP_ENABLED:
+                log("Waiting for the partial ramdump completed")
+                handle_ssr_ui()
+
+            if elapsed >= 0 and not PARTIAL_RAMDUMP_ENABLED:
                 time.sleep(10 - elapsed/1000.0)
 
             trial.put_extra(name="elapsed", value=elapsed)
@@ -194,10 +218,19 @@ def record_task_run(device, serialno, num_iter=1):
 
         log("trigger_ssr()")
         AATApp.trigger_ssr(device)
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            handle_ssr_ui()
+
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
-        if elapsed >= 0:
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            log("Waiting for the partial ramdump completed")
+            handle_ssr_ui()
+
+        if elapsed >= 0 and not PARTIAL_RAMDUMP_ENABLED:
             time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
@@ -250,10 +283,19 @@ def voip_task_run(device, serialno, num_iter=1):
 
         log("trigger_ssr()")
         AATApp.trigger_ssr(device)
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            handle_ssr_ui()
+
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
-        if elapsed >= 0:
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            log("Waiting for the partial ramdump completed")
+            handle_ssr_ui()
+
+        if elapsed >= 0 and not PARTIAL_RAMDUMP_ENABLED:
             time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
@@ -294,10 +336,19 @@ def voip_task_run(device, serialno, num_iter=1):
 
         log("trigger_ssr()")
         AATApp.trigger_ssr(device)
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            handle_ssr_ui()
+
         log("Waiting for SSR recovery")
         elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
-        if elapsed >= 0:
+
+        if PARTIAL_RAMDUMP_ENABLED:
+            log("Waiting for the partial ramdump completed")
+            handle_ssr_ui()
+
+        if elapsed >= 0 and not PARTIAL_RAMDUMP_ENABLED:
             time.sleep(10 - elapsed/1000.0)
 
         trial.put_extra(name="elapsed", value=elapsed)
@@ -316,6 +367,115 @@ def voip_task_run(device, serialno, num_iter=1):
 
     log("voip_task_run--")
     return trials
+
+
+import threading, re
+class SSRDumpListener(object):
+    WORK_THREAD = None
+    PERIOD = 0.5
+    FILTER = "com.htc.android.ssdtest/com.htc.android.ssdtest.DialogShower"
+    MSG_VIEW_ID = "android:id/message"
+    BTN_ID = "android:id/button2"
+    RAMDUMP_COMPLETED_KEYMSG = "Dump RAM logs completely"
+
+    class SSRDumpListenerThread(threading.Thread):
+        class State(object):
+            IDLE = "idle"
+            BEING_DUMPED = "being dumped"
+            DUMPED = "has been dumped"
+
+        def __init__(self, device, serialno):
+            super(SSRDumpListener.SSRDumpListenerThread, self).__init__()
+            self.daemon = True
+            self.stoprequest = threading.Event()
+            self.lock = threading.Lock()
+            self.device = device
+            self.serialno = serialno
+            self.vc = ViewClient(device, serialno, autodump=False)
+            self.state = SSRDumpListener.SSRDumpListenerThread.State.IDLE
+
+        def join(self, timeout=None):
+            self.stoprequest.set()
+            super(SSRDumpListener.SSRDumpListenerThread, self).join(timeout)
+
+        def run(self):
+            pattern = re.compile("Window{.+?}")
+            while not self.stoprequest.isSet():
+                try:
+                    win_dumpsys, _ = subprocess.Popen( \
+                        "adb -s {} shell dumpsys window windows | grep \"Window #\"".format(self.serialno), \
+                        shell=True, stdout=subprocess.PIPE).communicate()
+
+                    win_info_strs = map(lambda s: pattern.search(s.strip()).group(0), win_dumpsys.splitlines())
+                    win_info_strs = [s[7:-1] for s in win_info_strs if len(s) > 7]
+                    self.win_info = dict( [(ss[2], ss[0]) for ss in map(lambda s: s.split(), win_info_strs)] )
+                    if SSRDumpListener.FILTER in self.win_info.keys():
+                        self.vc.dump(window=self.win_info[SSRDumpListener.FILTER], sleep=0)
+                        views = dict( [(v.getId(), v) for v in self.vc.getViewsById().values() if len(v.getId()) > 0] )
+
+                        if SSRDumpListener.MSG_VIEW_ID in views.keys():
+                            msg = views[SSRDumpListener.MSG_VIEW_ID].getText()
+
+                            if SSRDumpListener.RAMDUMP_COMPLETED_KEYMSG in msg:
+                                self.state = SSRDumpListener.SSRDumpListenerThread.State.DUMPED
+                            else:
+                                self.state = SSRDumpListener.SSRDumpListenerThread.State.BEING_DUMPED
+
+                    else:
+                        self.state = SSRDumpListener.SSRDumpListenerThread.State.IDLE
+
+                except:
+                    pass
+                time.sleep(SSRDumpListener.PERIOD)
+
+        def dismiss_dialog(self):
+            if self.state == SSRDumpListener.SSRDumpListenerThread.State.IDLE:
+                return
+
+            self.vc.dump(window=self.win_info[SSRDumpListener.FILTER], sleep=0)
+            views = dict( [(v.getId(), v) for v in self.vc.getViewsById().values() if len(v.getId()) > 0] )
+
+            if SSRDumpListener.BTN_ID in views.keys():
+                x, y = views[SSRDumpListener.BTN_ID].getCenter()
+                self.device.touch(x, y)
+
+            self.state = SSRDumpListener.SSRDumpListenerThread.State.IDLE
+
+    @staticmethod
+    def init(device, serialno):
+        if not PARTIAL_RAMDUMP_ENABLED:
+            return
+
+        SSRDumpListener.WORK_THREAD = SSRDumpListener.SSRDumpListenerThread(device, serialno)
+        SSRDumpListener.WORK_THREAD.start()
+
+    @staticmethod
+    def wait_for_dialog(timeout=-1):
+        if not PARTIAL_RAMDUMP_ENABLED:
+            return
+
+        cnt = 0
+        while SSRDumpListener.WORK_THREAD.state == SSRDumpListener.SSRDumpListenerThread.State.IDLE:
+            cnt += 1
+            if timeout > 0 and cnt >= timeout * 10.0:
+                return -1
+            time.sleep(0.1)
+
+        return cnt * 100.0
+
+    @staticmethod
+    def dismiss_dialog():
+        if not PARTIAL_RAMDUMP_ENABLED:
+            return
+
+        SSRDumpListener.WORK_THREAD.dismiss_dialog()
+
+    @staticmethod
+    def finalize():
+        if not PARTIAL_RAMDUMP_ENABLED:
+            return
+
+        SSRDumpListener.WORK_THREAD.join()
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1

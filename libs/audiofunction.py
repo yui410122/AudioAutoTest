@@ -86,7 +86,7 @@ class ToneDetectorThread(threading.Thread):
             return True
 
         diff_semitone = np.abs(np.log(1.0*freq/self.target_freq) / np.log(2) * 12)
-        return diff_semitone < 0.1
+        return diff_semitone < 2
 
 class ToneDetectorForDeviceThread(ToneDetectorThread):
     def __init__(self, serialno, target_freq, callback):
@@ -100,7 +100,8 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         LogcatListener.init(self.serialno)
 
         shared_vars = {
-            "start_time": None
+            "start_time": None,
+            "last_event": None
         }
 
         def freq_cb(pattern, msg):
@@ -116,12 +117,16 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                 if self.event_counter == 1:
                     shared_vars["start_time"] = time_str
                 if self.event_counter == thresh:
-                    self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_DETECTED:
+                        self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+                        shared_vars["last_event"] = ToneDetector.Event.TONE_DETECTED
 
             else:
                 if self.event_counter > thresh:
                     shared_vars["start_time"] = None
-                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
+                        self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                        shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
 
         logcat_event = LogcatEvent(pattern="AudioFunctionsDemo::properties", cb=freq_cb)
@@ -145,7 +150,8 @@ class ToneDetectorForServerThread(ToneDetectorThread):
 
     def run(self):
         shared_vars = {
-            "start_time": None
+            "start_time": None,
+            "last_event": None
         }
 
         def freq_cb(detected_tone, detected_amp_db):
@@ -158,12 +164,16 @@ class ToneDetectorForServerThread(ToneDetectorThread):
                 if self.event_counter == 1:
                     shared_vars["start_time"] = time_str
                 if self.event_counter == thresh:
-                    self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_DETECTED:
+                        self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+                        shared_vars["last_event"] = ToneDetector.Event.TONE_DETECTED
 
             else:
                 if self.event_counter > thresh:
                     shared_vars["start_time"] = None
-                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
+                        self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                        shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
 
         AudioFunction.start_record(cb=freq_cb)
