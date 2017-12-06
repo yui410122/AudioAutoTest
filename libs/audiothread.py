@@ -100,7 +100,7 @@ class AudioCommandThread(threading.Thread):
             signal = np.arange(outdata.shape[0])
             signal = signal * 2*np.pi/cfg.fs + phase_offset
             phase_offset += outdata.shape[0] * 2*np.pi/cfg.fs
-            signal = np.sin(signal * cmd.out_freq)
+            signal = 0.99 * np.sin(signal * cmd.out_freq)
 
             for cidx in range(outdata.shape[1]):
                 outdata[:, cidx] = signal
