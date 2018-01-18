@@ -135,7 +135,7 @@ class AudioCommandThread(threading.Thread):
             else:
                 buff = np.array(indata[:, :])
 
-            if buff.size >= framesize:
+            while buff.size >= framesize:
                 spectrum = np.abs(fft(buff[:framesize, 0], cmd.nfft))
                 spectrum = spectrum[:int(cmd.nfft/2.0)]
                 max_idx = np.argmax(spectrum)
