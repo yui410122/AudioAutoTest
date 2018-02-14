@@ -19,7 +19,7 @@ TAG = "ssr_test.py"
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
 BATCH_SIZE = 5
-PARTIAL_RAMDUMP_ENABLED = True
+PARTIAL_RAMDUMP_ENABLED = False
 
 FILE_NAMES = [
     "440Hz.wav",
