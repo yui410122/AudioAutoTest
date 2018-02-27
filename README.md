@@ -51,7 +51,7 @@ Installing setuptools, pip, wheel...done.
 
 #### The dependencies should be installed with a command
 ```
-(py2) {WORK_DIR}$ ./install.sh
+(py2) {WORK_DIR}$ pip install -r requirements.txt
 ```
 
 #### Tested the example scripts
