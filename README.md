@@ -24,9 +24,12 @@ AudioAutoTest/
 │   └── README.md
 ├── README.md
 ├── requirements.txt
-└── scripts
-    ├── example.py
-    └── ssr_test.py
+├── scripts
+│   ├── example.py
+│   └── ssr_test.py
+└── tools-for-dev
+    ├── dump-screen.py
+    └── viewclient-example.py
 ```
 
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
