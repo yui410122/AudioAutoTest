@@ -26,17 +26,8 @@ FILE_NAMES = [
     "440Hz.mp3"
 ]
 
-def push_files_if_needed(serialno):
-    out, _ = Adb.execute(cmd=["shell", "ls", DEVICE_MUSIC_DIR], serialno=serialno)
-
-    # The command "adb shell ls" might return several lines of strings where each line lists multiple file names
-    # Then the result should be handled line by line:
-    #           map function for split with spaces and reduce function for concatenate the results of each line
-    files = reduce(lambda x, y: x+y, map(lambda s: s.split(), out.splitlines())) if out else []
-
+def push_files(serialno):
     for file_to_pushed in FILE_NAMES:
-        if file_to_pushed in files:
-            continue
         out, _ = subprocess.Popen(["find", ROOT_DIR, "-name", file_to_pushed], stdout=subprocess.PIPE).communicate()
         file_path = out.splitlines()[0] if out else None
         if file_path:
@@ -85,6 +76,7 @@ def run(num_iter=1):
     component = package + "/" + activity
 
     device, serialno = ViewClient.connectToDeviceOrExit(serialno=None)
+    push_files(serialno)
     wake_device(device, serialno)
     SSRDumpListener.init(device, serialno)
 
