@@ -22,8 +22,8 @@ BATCH_SIZE = 5
 PARTIAL_RAMDUMP_ENABLED = False
 
 FILE_NAMES = [
-    "440Hz.wav",
-    "440Hz.mp3"
+    "440Hz_wav.wav",
+    "440Hz_mp3.mp3"
 ]
 
 def push_files(serialno):
@@ -125,6 +125,11 @@ def playback_task_run(device, num_iter=1):
         "offload"   : AATApp.playback_offload
     }
 
+    files = {
+        "nonoffload": "440Hz_wav.wav",
+        "offload"   : "440Hz_mp3.mp3"
+    }
+
     for i in range(num_iter):
         log("-------- playback_task #{} --------".format(i+1))
         for name, func in funcs.items():
@@ -135,7 +140,7 @@ def playback_task_run(device, num_iter=1):
             time.sleep(1)
             th.reset()
             log("reset DetectionStateChangeListener")
-            func(device)
+            func(device, filename=files[name])
 
             if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
                 log("the tone was not detected, abort the iteration this time...")
