@@ -54,3 +54,11 @@ class AATApp(object):
     def voip_mute_output(device):
         cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.mute.output"])
         device.shell(cmd)
+
+    @staticmethod
+    def print_log(device, severity="i", tag="AATAppAPIs", log=None):
+        if not log:
+            return
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "log.print",
+            "--es", "sv", str(severity), "--es", "tag", str(tag), "--es", "log", "\"{}\"".format(log)])
+        device.shell(cmd)

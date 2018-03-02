@@ -91,6 +91,7 @@ def run(num_iter=1):
     batch_count = 1
     while num_iter > 0:
         log("-------- batch_run #{} --------".format(batch_count))
+        AATApp.print_log(device, severity="i", tag=TAG, log="-------- batch_run #{} --------".format(batch_count))
         trials_batch = []
         trials_batch += playback_task_run(device, num_iter=min([num_iter, BATCH_SIZE]))
         trials_batch += record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
@@ -135,6 +136,8 @@ def playback_task_run(device, num_iter=1):
         for name, func in funcs.items():
             trial = Trial(taskname="playback_{}".format(name))
             trial.put_extra(name="iter_id", value=i+1)
+
+            AATApp.print_log(device, severity="i", tag=TAG, log="playback_{}_task #{}".format(name, i+1))
 
             log("dev_playback_{}_start".format(name))
             time.sleep(1)
@@ -206,6 +209,8 @@ def record_task_run(device, serialno, num_iter=1):
         trial = Trial(taskname="record")
         trial.put_extra(name="iter_id", value=i+1)
 
+        AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
+
         th.reset()
         if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
@@ -268,6 +273,8 @@ def voip_task_run(device, serialno, num_iter=1):
         trial = Trial(taskname="voip_rx")
         trial.put_extra(name="iter_id", value=i+1)
 
+        AATApp.print_log(device, severity="i", tag=TAG, log="voip_rx_task #{}".format(i+1))
+
         time.sleep(1)
         th.reset()
 
@@ -317,6 +324,8 @@ def voip_task_run(device, serialno, num_iter=1):
 
         trial = Trial(taskname="voip_tx")
         trial.put_extra(name="iter_id", value=i+1)
+
+        AATApp.print_log(device, severity="i", tag=TAG, log="voip_tx_task #{}".format(i+1))
 
         time.sleep(2)
 
