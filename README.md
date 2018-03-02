@@ -10,8 +10,8 @@ AudioAutoTest/
 │       ├── audiofunctionsdemo.apk
 │       └── output.json
 ├── audiofiles
-│   ├── 440Hz.mp3
-│   └── 440Hz.wav
+│   ├── 440Hz_mp3.mp3
+│   └── 440Hz_wav.wav
 ├── install.sh
 ├── libs
 │   ├── __init__.py
@@ -29,6 +29,7 @@ AudioAutoTest/
 │   └── ssr_test.py
 └── tools-for-dev
     ├── dump-screen.py
+    ├── genwave.py
     └── viewclient-example.py
 ```
 
