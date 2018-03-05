@@ -2,6 +2,7 @@ import threading
 import datetime
 import shutil
 import os
+import platform
 
 from libs import ROOT_DIR
 
@@ -32,6 +33,10 @@ class LoggerThread(threading.Thread):
 
         if len(self.log_dir) < 1 and self.log_dir[-1] != "/":
             self.log_dir += "/"
+
+        if platform.system() == "Windows":
+            self.log_dir = self.log_dir.replace("/", "\\")
+
         self._update_timestamp()
 
     def to_file(self):

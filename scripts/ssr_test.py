@@ -7,7 +7,7 @@ import datetime
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
-from libs import ROOT_DIR
+from libs import ROOT_DIR, SEP, STDNUL
 from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
 from libs.logger import Logger
@@ -31,7 +31,7 @@ def push_files(serialno):
         out, _ = subprocess.Popen(["find", ROOT_DIR, "-name", file_to_pushed], stdout=subprocess.PIPE).communicate()
         file_path = out.splitlines()[0] if out else None
         if file_path:
-            os.system("adb -s {} push {} {} > /dev/null".format(serialno, file_path, DEVICE_MUSIC_DIR))
+            os.system("adb -s {} push {} {} > {}".format(serialno, file_path, DEVICE_MUSIC_DIR, STDNUL))
         else:
             raise ValueError("Cannot find the file \"{}\", please place it under the project tree.".format(file_to_pushed))
 
@@ -67,7 +67,7 @@ def run(num_iter=1):
     Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
     Adb.init()
 
-    os.system("mkdir -p {}/ssr_report > /dev/null".format(ROOT_DIR))
+    os.system("mkdir -p {}{}ssr_report > {}".format(ROOT_DIR, SEP, STDNUL))
     t = datetime.datetime.now()
     filename = "report_{}{:02d}{:02d}_{:02d}{:02d}{:02d}.json".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
 
@@ -99,7 +99,7 @@ def run(num_iter=1):
 
         map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
         trials += trials_batch
-        with open("{}/ssr_report/{}".format(ROOT_DIR, filename), "w") as f:
+        with open("{}{}ssr_report{}{}".format(ROOT_DIR, SEP, SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
 
         num_iter -= BATCH_SIZE
@@ -405,11 +405,15 @@ class SSRDumpListener(object):
             super(SSRDumpListener.SSRDumpListenerThread, self).join(timeout)
 
         def run(self):
+            import platform
+            if platform.system() == "Windows":
+                cmdformat = "powershell.exe \"adb -s {} shell dumpsys window | select-string -pattern \"Window #\""
+            else:
+                cmdformat = "adb -s {} shell dumpsys window | grep \"Window #\""
             pattern = re.compile("Window{.+?}")
             while not self.stoprequest.isSet():
                 try:
-                    win_dumpsys, _ = subprocess.Popen( \
-                        "adb -s {} shell dumpsys window windows | grep \"Window #\"".format(self.serialno), \
+                    win_dumpsys, _ = subprocess.Popen(cmdformat.format(self.serialno), \
                         shell=True, stdout=subprocess.PIPE).communicate()
 
                     win_info_strs = map(lambda s: pattern.search(s.strip()).group(0), win_dumpsys.splitlines())
