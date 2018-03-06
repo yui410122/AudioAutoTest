@@ -131,7 +131,7 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                         shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
 
-        logcat_event = LogcatEvent(pattern="AudioFunctionsDemo::properties", cb=freq_cb)
+        logcat_event = LogcatEvent(pattern="::properties", cb=freq_cb)
         LogcatListener.register_event(serialno=self.serialno, logcat_event=logcat_event)
 
         while not self.stoprequest.isSet():
