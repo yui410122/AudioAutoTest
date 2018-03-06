@@ -5,6 +5,8 @@ import time
 import os
 import datetime
 
+from libs import STDNUL
+
 from libs.adbutils import Adb
 from libs.logcatlistener import LogcatListener, LogcatEvent
 from libs.logger import Logger
@@ -133,7 +135,7 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         LogcatListener.register_event(serialno=self.serialno, logcat_event=logcat_event)
 
         while not self.stoprequest.isSet():
-            os.system("adb -s {} shell am broadcast -a audio.htc.com.intent.print.properties > /dev/null".format(self.serialno))
+            os.system("adb -s {} shell am broadcast -a audio.htc.com.intent.print.properties > {}".format(self.serialno, STDNUL))
             # TODO: it seems that the Adb APIs probably should not be called constantly during a short period
             #       therefore, using the primary os.system is preferred currently
             # Adb.execute(cmd=["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties"], serialno=self.serialno, tolog=False)

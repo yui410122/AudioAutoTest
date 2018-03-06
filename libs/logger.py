@@ -2,9 +2,8 @@ import threading
 import datetime
 import shutil
 import os
-import platform
 
-from libs import ROOT_DIR
+from libs import ROOT_DIR, SEP
 
 try:
     import queue
@@ -16,7 +15,7 @@ except ImportError:
 class LoggerThread(threading.Thread):
     MAX_SIZE = 10000
     BUF_SIZE = 10
-    LOG_DIR = ROOT_DIR + "/log/"
+    LOG_DIR = ROOT_DIR + "{}log{}".format(SEP, SEP)
 
     def __init__(self, max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
         super(LoggerThread, self).__init__()
@@ -31,11 +30,8 @@ class LoggerThread(threading.Thread):
         self._to_stdout = False
         self._to_file = False
 
-        if len(self.log_dir) < 1 and self.log_dir[-1] != "/":
-            self.log_dir += "/"
-
-        if platform.system() == "Windows":
-            self.log_dir = self.log_dir.replace("/", "\\")
+        if len(self.log_dir) < 1 and self.log_dir[-1] != SEP:
+            self.log_dir += SEP
 
         self._update_timestamp()
 
