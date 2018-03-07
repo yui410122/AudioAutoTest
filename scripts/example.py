@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR
 from libs.adbutils import Adb
-from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
+from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.logger import Logger
 from libs.aatapp import AATApp
 
@@ -60,14 +60,13 @@ def playback_task_run(device):
     log("dev_playback_start(nonoffload)")
     AATApp.playback_nonoffload(device)
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    stm = DetectionStateListener()
 
     log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
-    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
 
     # Waiting for the event of tone detected, blocking with a 5 secs timeout
-    if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+    if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
         log("the tone was not detected, abort the function...")
         AATApp.playback_stop(device)
         return
@@ -87,12 +86,11 @@ def playback_task_run(device):
     log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
 
     # Waiting the event that the tone is detected again after the tone is missing
-    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+    elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
 
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
     log("dev_playback_stop(nonoffload)")
     AATApp.playback_stop(device)
@@ -103,11 +101,10 @@ def record_task_run(device, serialno):
     AATApp.record_start(device)
     time.sleep(2)
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    th = DetectionStateListener()
 
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
     log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 
@@ -123,13 +120,13 @@ def record_task_run(device, serialno):
 
     threading.Thread(target=stop_then_play).start()
     log("Waiting for {} Hz pure tone detected".format(OUT_FREQ))
-    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+    elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
 
     time.sleep(1)
 
     log("Trying to wait a timeout event")
-    elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.FALLING_EDGE, timeout=10)
+    elapsed = stm.wait_for_event(DetectionStateListener.Event.FALLING_EDGE, timeout=10)
     log("elapsed: {} ms".format(elapsed))
 
     log("dev_record_stop")
@@ -137,7 +134,6 @@ def record_task_run(device, serialno):
 
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
     AudioFunction.stop_audio()
 

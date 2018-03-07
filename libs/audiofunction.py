@@ -69,6 +69,7 @@ class ToneDetectorThread(threading.Thread):
         self.event_counter = 0
         self.target_freq = target_freq
         self.cb = callback
+        self.extra = None
 
     def join(self, timeout=None):
         self.stoprequest.set()
@@ -92,14 +93,40 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         super(ToneDetectorForDeviceThread, self).__init__(target_freq=target_freq, callback=callback)
         self.serialno = serialno
 
+    def push_to_dump(self, msg):
+        self.extra["dump-lock"].acquire()
+        self.extra["dump"].append(msg)
+        self.extra["dump-lock"].release()
+
+    def clear_dump(self):
+        self.extra["dump-lock"].acquire()
+        del self.extra["dump"][:]
+        self.extra["dump-lock"].release()
+
+    def dump(self):
+        self.extra["dump-lock"].acquire()
+        Logger.log("ToneDetectorForDeviceThread", "dump called")
+        Logger.log("ToneDetectorForDeviceThread", "----------------------------------------------")
+        map(lambda msg: Logger.log("ToneDetectorForDeviceThread::dump", "\"{}\"".format(msg)), self.extra["dump"])
+        del self.extra["dump"][:]
+        Logger.log("ToneDetectorForDeviceThread", "----------------------------------------------")
+        self.extra["dump-lock"].release()
+
     def join(self, timeout=None):
         super(ToneDetectorForDeviceThread, self).join(timeout)
 
     def run(self):
         shared_vars = {
             "start_time": None,
-            "last_event": None
+            "last_event": None,
+            "last_freq": -1
         }
+
+        self.extra = {}
+        self.extra["adb-read-prop-max-elapsed"] = -1
+        self.extra["freq-cb-max-elapsed"] = -1
+        self.extra["dump"] = []
+        self.extra["dump-lock"] = threading.Lock()
 
         def freq_cb(msg):
             strs = msg.split()
@@ -108,6 +135,11 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
 
             time_str = the_date + " " + the_time
 
+            if shared_vars["last_freq"] != freq:
+                Logger.log("ToneDetectorForDeviceThread", \
+                    "the detected freq has been changed from {} to {} Hz".format(shared_vars["last_freq"], freq))
+                shared_vars["last_freq"] = freq
+
             thresh = 10 if self.target_freq else 1
             if super(ToneDetectorForDeviceThread, self).target_detected(freq):
                 self.event_counter += 1
@@ -115,31 +147,57 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                     shared_vars["start_time"] = time_str
                 if self.event_counter == thresh:
                     if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_DETECTED:
+                        Logger.log("ToneDetectorForDeviceThread", "send_cb({}, TONE_DETECTED)".format(shared_vars["start_time"]))
                         self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
                         shared_vars["last_event"] = ToneDetector.Event.TONE_DETECTED
 
             else:
                 if self.event_counter > thresh:
                     shared_vars["start_time"] = None
+                    self.push_to_dump("the tone is not detected and the event_counter is over the threshold")
+                    self.push_to_dump("last_event: \"{}\"".format(shared_vars["last_event"]))
                     if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
+                        Logger.log("ToneDetectorForDeviceThread", "send_cb({}, TONE_MISSING)".format(time_str))
                         self.cb((time_str, ToneDetector.Event.TONE_MISSING))
                         shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
+
+            if self.event_counter <= thresh: self.push_to_dump("event_counter: {}".format(self.event_counter))
 
         Adb.execute(cmd= \
             ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
             serialno=self.serialno)
 
+        from libs.tictoc import TicToc
+        freq_cb_tictoc = TicToc()
+        adb_tictoc = TicToc()
+
+        freq_cb_tictoc.tic()
         while not self.stoprequest.isSet():
+            adb_tictoc.tic()
             msg, _ = Adb.execute(cmd=["shell", "cat", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
                 serialno=self.serialno, tolog=False)
+            elapsed = adb_tictoc.toc()
+
+            if elapsed > self.extra["adb-read-prop-max-elapsed"]:
+                self.extra["adb-read-prop-max-elapsed"] = elapsed
 
             if "," in msg:
+                msg = msg.replace("\n", "")
                 import datetime
                 t = datetime.datetime.now()
-                msg = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:03d} {}".format( \
-                    t.month, t.day, t.hour, t.minute, t.second, int(round(t.microsecond*1.0/1000)), msg)
-                freq_cb(msg)
+                msg = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:06d} {}".format( \
+                    t.month, t.day, t.hour, t.minute, t.second, t.microsecond, msg)
+
+                try:
+                    self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(msg, elapsed))
+                    freq_cb(msg)
+                except Exception as e:
+                    Logger.log("ToneDetectorThread", "crashed in freq_cb('{}')".format(msg))
+
+                elapsed = freq_cb_tictoc.toc()
+                if elapsed > self.extra["freq-cb-max-elapsed"]:
+                    self.extra["freq-cb-max-elapsed"] = elapsed
 
             time.sleep(0.01)
 
@@ -213,7 +271,7 @@ class ToneDetector(object):
         ToneDetector.WORK_THREAD.join()
         ToneDetector.WORK_THREAD = None
 
-class DetectionStateChangeListenerThread(threading.Thread):
+class DetectionStateListener(object):
     class Event(object):
         ACTIVE = "active"
         INACTIVE = "inactive"
@@ -221,7 +279,6 @@ class DetectionStateChangeListenerThread(threading.Thread):
         FALLING_EDGE = "falling"
 
     def __init__(self):
-        super(DetectionStateChangeListenerThread, self).__init__()
         self.daemon = True
         self.stoprequest = threading.Event()
         self.event_q = queue.Queue()
@@ -235,31 +292,32 @@ class DetectionStateChangeListenerThread(threading.Thread):
         #   so the active/inactive event needs to be sent again before setting the current state to None
         active_or_inactive = None
         if self.current_event:
-            active_or_inactive = DetectionStateChangeListenerThread.Event.ACTIVE \
+            active_or_inactive = DetectionStateListener.Event.ACTIVE \
                             if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
-                                 DetectionStateChangeListenerThread.Event.INACTIVE
-        self.current_event = None
+                                 DetectionStateListener.Event.INACTIVE
+
         with self.event_q.mutex:
             self.event_q.queue.clear()
 
         if active_or_inactive:
+            Logger.log("DetectionStateListener", "reset and resend the event ({}, 0)".format(active_or_inactive))
             self.event_q.put((active_or_inactive, 0))
 
     def tone_detected_event_cb(self, event):
-        Logger.log("DetectionStateChangeListenerThread", "tone_detected_event_cb: {}".format(event))
+        Logger.log("DetectionStateListener", "tone_detected_event_cb: {}".format(event))
         self._handle_event(event)
 
     def _handle_event(self, event):
-        active_or_inactive = DetectionStateChangeListenerThread.Event.ACTIVE \
+        active_or_inactive = DetectionStateListener.Event.ACTIVE \
                         if event[1] == ToneDetector.Event.TONE_DETECTED else \
-                             DetectionStateChangeListenerThread.Event.INACTIVE
+                             DetectionStateListener.Event.INACTIVE
 
         self.event_q.put((active_or_inactive, 0))
 
         if self.current_event and self.current_event[1] != event[1]:
-            rising_or_falling = DetectionStateChangeListenerThread.Event.RISING_EDGE \
+            rising_or_falling = DetectionStateListener.Event.RISING_EDGE \
                             if event[1] == ToneDetector.Event.TONE_DETECTED else \
-                                DetectionStateChangeListenerThread.Event.FALLING_EDGE
+                                DetectionStateListener.Event.FALLING_EDGE
 
             t2 = datetime.datetime.strptime(event[0], ToneDetector.TIME_STR_FORMAT)
             t1 = datetime.datetime.strptime(self.current_event[0], ToneDetector.TIME_STR_FORMAT)
@@ -276,17 +334,15 @@ class DetectionStateChangeListenerThread(threading.Thread):
                 return -1
             try:
                 ev = self.event_q.get(timeout=0.1)
-                Logger.log("DetectionStateChangeListenerThread", "get event: {}".format(ev))
+                Logger.log("DetectionStateListener", "get event: {}".format(ev))
                 if ev[0] == event:
                     return ev[1]
             except queue.Empty:
-                pass
+                if self.current_event:
+                    active_or_inactive = DetectionStateListener.Event.ACTIVE \
+                        if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
+                             DetectionStateListener.Event.INACTIVE
+                    if active_or_inactive == event:
+                        Logger.log("DetectionStateListener", "the current state '{}' fits the waited event".format(event))
+                        return 0
         return -1
-
-    def join(self, timeout=None):
-        self.stoprequest.set()
-        super(DetectionStateChangeListenerThread, self).join(timeout)
-
-    def run(self):
-        while self.stoprequest.isSet():
-            time.sleep(0.1)

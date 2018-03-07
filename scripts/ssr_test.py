@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR, SEP, STDNUL
 from libs.adbutils import Adb
-from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateChangeListenerThread
+from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.logger import Logger
 from libs.aatapp import AATApp
 from libs.trials import Trial, TrialHelper
@@ -115,11 +115,10 @@ def playback_task_run(device, num_iter=1):
 
     trials = []
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    stm = DetectionStateListener()
 
     log("ToneDetector.start_listen(target_freq={})".format(OUT_FREQ))
-    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
 
     funcs = {
         "nonoffload": AATApp.playback_nonoffload,
@@ -141,11 +140,11 @@ def playback_task_run(device, num_iter=1):
 
             log("dev_playback_{}_start".format(name))
             time.sleep(1)
-            th.reset()
+            stm.reset()
             log("reset DetectionStateChangeListener")
             func(device, filename=files[name])
 
-            if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
                 log("the tone was not detected, abort the iteration this time...")
                 AATApp.playback_stop(device)
                 trial.invalidate(errormsg="early return, possible reason: rx no sound")
@@ -160,7 +159,7 @@ def playback_task_run(device, num_iter=1):
                 handle_ssr_ui()
 
             log("Waiting for SSR recovery")
-            elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+            elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
             log("elapsed: {} ms".format(elapsed))
 
             if PARTIAL_RAMDUMP_ENABLED:
@@ -175,12 +174,11 @@ def playback_task_run(device, num_iter=1):
 
             log("dev_playback_stop")
             AATApp.playback_stop(device)
-            th.wait_for_event(DetectionStateChangeListenerThread.Event.INACTIVE, timeout=5)
+            stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=5)
 
     log("-------- playback_task done --------")
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
     log("playback_task_run--")
     return trials
@@ -194,11 +192,10 @@ def record_task_run(device, serialno, num_iter=1):
     AATApp.record_start(device)
     time.sleep(2)
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    stm = DetectionStateListener()
 
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
     log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 
@@ -211,9 +208,14 @@ def record_task_run(device, serialno, num_iter=1):
 
         AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
 
-        th.reset()
-        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+        ToneDetector.WORK_THREAD.clear_dump()
+        stm.reset()
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
+            log("ToneDetectorForDeviceThread.adb-read-prop-max-elapsed: {} ms".format( \
+                ToneDetector.WORK_THREAD.extra["adb-read-prop-max-elapsed"]))
+            log("ToneDetectorForDeviceThread.freq-cb-max-elapsed: {} ms".format( \
+                ToneDetector.WORK_THREAD.extra["freq-cb-max-elapsed"]))
             trial.invalidate(errormsg="early return, possible reason: tx no sound")
             trials.append(trial)
             continue
@@ -225,8 +227,27 @@ def record_task_run(device, serialno, num_iter=1):
             handle_ssr_ui()
 
         log("Waiting for SSR recovery")
-        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
+        if elapsed < 0:
+            log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
+            log("Waiting for the tone being detected")
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+                log("The tone is not detected")
+            else:
+                log("The tone is detected, please also check the device log for confirming if it is a false alarm")
+
+            log("start dumping the process during capturing the frequency...")
+            ToneDetector.WORK_THREAD.dump()
+
         log("elapsed: {} ms".format(elapsed))
+
+        if elapsed < 0:
+            log("The detector thread is {}alive.".format("" if ToneDetector.WORK_THREAD.is_alive() else "not "))
+
+        log("ToneDetectorForDeviceThread.adb-read-prop-max-elapsed: {} ms".format( \
+            ToneDetector.WORK_THREAD.extra["adb-read-prop-max-elapsed"]))
+        log("ToneDetectorForDeviceThread.freq-cb-max-elapsed: {} ms".format( \
+            ToneDetector.WORK_THREAD.extra["freq-cb-max-elapsed"]))
 
         if PARTIAL_RAMDUMP_ENABLED:
             log("Waiting for the partial ramdump completed")
@@ -247,7 +268,6 @@ def record_task_run(device, serialno, num_iter=1):
     time.sleep(5)
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
     log("record_task_run--")
     return trials
@@ -260,11 +280,10 @@ def voip_task_run(device, serialno, num_iter=1):
     # AATApp.voip_use_speaker(device)
     time.sleep(2)
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    stm = DetectionStateListener()
 
     log("ToneDetector.start_listen(target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
 
     AATApp.voip_start(device)
     for i in range(num_iter):
@@ -276,9 +295,9 @@ def voip_task_run(device, serialno, num_iter=1):
         AATApp.print_log(device, severity="i", tag=TAG, log="voip_rx_task #{}".format(i+1))
 
         time.sleep(1)
-        th.reset()
+        stm.reset()
 
-        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
             trial.invalidate(errormsg="early return, possible reason: rx no sound")
             trials.append(trial)
@@ -292,7 +311,7 @@ def voip_task_run(device, serialno, num_iter=1):
             handle_ssr_ui()
 
         log("Waiting for SSR recovery")
-        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
 
         if PARTIAL_RAMDUMP_ENABLED:
@@ -308,16 +327,14 @@ def voip_task_run(device, serialno, num_iter=1):
     log("-------- dev_voip_rx_task done --------")
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
-    th = DetectionStateChangeListenerThread()
-    th.start()
+    stm = DetectionStateListener()
 
     time.sleep(2)
     AATApp.voip_mute_output(device)
     time.sleep(10)
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, None))
-    ToneDetector.start_listen(serialno=serialno, target_freq=None, cb=lambda event: th.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=None, cb=lambda event: stm.tone_detected_event_cb(event))
 
     for i in range(num_iter):
         log("-------- dev_voip_tx_task #{} --------".format(i+1))
@@ -332,8 +349,8 @@ def voip_task_run(device, serialno, num_iter=1):
         log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
         AudioFunction.play_sound(out_freq=OUT_FREQ)
 
-        th.reset()
-        if th.wait_for_event(DetectionStateChangeListenerThread.Event.ACTIVE, timeout=5) < 0:
+        stm.reset()
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
             log("the tone was not detected, abort the iteration this time...")
             trial.invalidate(errormsg="early return, possible reason: tx no sound")
             trials.append(trial)
@@ -347,7 +364,7 @@ def voip_task_run(device, serialno, num_iter=1):
             handle_ssr_ui()
 
         log("Waiting for SSR recovery")
-        elapsed = th.wait_for_event(DetectionStateChangeListenerThread.Event.RISING_EDGE, timeout=10)
+        elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=10)
         log("elapsed: {} ms".format(elapsed))
 
         if PARTIAL_RAMDUMP_ENABLED:
@@ -369,7 +386,6 @@ def voip_task_run(device, serialno, num_iter=1):
     time.sleep(5)
     log("ToneDetector.stop_listen()")
     ToneDetector.stop_listen()
-    th.join()
 
     log("voip_task_run--")
     return trials
