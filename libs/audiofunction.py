@@ -5,10 +5,7 @@ import time
 import os
 import datetime
 
-from libs import STDNUL
-
 from libs.adbutils import Adb
-from libs.logcatlistener import LogcatListener, LogcatEvent
 from libs.logger import Logger
 
 # Initialization of used variables
@@ -99,14 +96,12 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         super(ToneDetectorForDeviceThread, self).join(timeout)
 
     def run(self):
-        LogcatListener.init(self.serialno)
-
         shared_vars = {
             "start_time": None,
             "last_event": None
         }
 
-        def freq_cb(pattern, msg):
+        def freq_cb(msg):
             strs = msg.split()
             freq, amp_db = map(float, strs[-1].split(","))
             the_date, the_time = strs[:2]
@@ -131,17 +126,27 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                         shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
 
-        logcat_event = LogcatEvent(pattern="::properties", cb=freq_cb)
-        LogcatListener.register_event(serialno=self.serialno, logcat_event=logcat_event)
+        Adb.execute(cmd= \
+            ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
+            serialno=self.serialno)
 
         while not self.stoprequest.isSet():
-            os.system("adb -s {} shell am broadcast -a audio.htc.com.intent.print.properties > {}".format(self.serialno, STDNUL))
-            # TODO: it seems that the Adb APIs probably should not be called constantly during a short period
-            #       therefore, using the primary os.system is preferred currently
-            # Adb.execute(cmd=["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties"], serialno=self.serialno, tolog=False)
+            msg, _ = Adb.execute(cmd=["shell", "cat", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
+                serialno=self.serialno, tolog=False)
+
+            if "," in msg:
+                import datetime
+                t = datetime.datetime.now()
+                msg = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:03d} {}".format( \
+                    t.month, t.day, t.hour, t.minute, t.second, int(round(t.microsecond*1.0/1000)), msg)
+                freq_cb(msg)
+
             time.sleep(0.01)
 
-        LogcatListener.unregister_event(serialno=self.serialno, logcat_event=logcat_event)
+        Adb.execute(cmd= \
+            ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "0"], \
+            serialno=self.serialno)
+
 
 class ToneDetectorForServerThread(ToneDetectorThread):
     def __init__(self, target_freq, callback):
@@ -198,7 +203,6 @@ class ToneDetector(object):
     @staticmethod
     def start_listen(target_freq, cb, serialno=None):
         if serialno:
-            Adb.execute(cmd=["logcat", "-c"], serialno=serialno)
             ToneDetector.WORK_THREAD = ToneDetectorForDeviceThread(serialno=serialno, target_freq=target_freq, callback=cb)
         else:
             ToneDetector.WORK_THREAD = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
