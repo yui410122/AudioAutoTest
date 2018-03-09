@@ -218,6 +218,10 @@ def record_task_run(device, serialno, num_iter=1):
                 ToneDetector.WORK_THREAD.extra["freq-cb-max-elapsed"]))
             trial.invalidate(errormsg="early return, possible reason: tx no sound")
             trials.append(trial)
+
+            now = "_".join("{}".format(datetime.datetime.now()).split())
+            log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
+            AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
             continue
 
         log("trigger_ssr()")
@@ -242,7 +246,9 @@ def record_task_run(device, serialno, num_iter=1):
         log("elapsed: {} ms".format(elapsed))
 
         if elapsed < 0:
-            log("The detector thread is {}alive.".format("" if ToneDetector.WORK_THREAD.is_alive() else "not "))
+            now = "_".join("{}".format(datetime.datetime.now()).split())
+            log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
+            AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
 
         log("ToneDetectorForDeviceThread.adb-read-prop-max-elapsed: {} ms".format( \
             ToneDetector.WORK_THREAD.extra["adb-read-prop-max-elapsed"]))

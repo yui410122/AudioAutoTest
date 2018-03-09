@@ -32,6 +32,11 @@ class AATApp(object):
         device.shell(cmd)
 
     @staticmethod
+    def record_dump(device, path):
+        cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "record.dump", "--es", "path", path])
+        device.shell(cmd)
+
+    @staticmethod
     def voip_start(device):
         cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "voip.start", "--ei", "spt_xmax", "1000"])
         device.shell(cmd)
