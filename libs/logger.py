@@ -13,7 +13,7 @@ except ImportError:
     import StringIO as sio
 
 class LoggerThread(threading.Thread):
-    MAX_SIZE = 10000
+    MAX_SIZE = 100000
     BUF_SIZE = 10
     LOG_DIR = ROOT_DIR + "{}log{}".format(SEP, SEP)
 
@@ -56,6 +56,11 @@ class LoggerThread(threading.Thread):
             shutil.copyfileobj(self.msg_stream, f)
 
         self.msg_stream.truncate(0)
+
+    def wait_for_queue_empty(self):
+        while not self.msg_q.empty():
+            import time
+            time.sleep(0.5)
 
     def push(self, msg):
         self.msg_q.put(msg)
@@ -119,6 +124,8 @@ class Logger(object):
     def finalize():
         if not Logger.HAS_BEEN_INIT:
             return
+
+        Logger.WORK_THREAD.wait_for_queue_empty()
 
         Logger.WORK_THREAD.join()
         Logger.HAS_BEEN_INIT = False
