@@ -14,15 +14,18 @@ AudioAutoTest/
 │   └── 440Hz_wav.wav
 ├── install.sh
 ├── libs
-│   ├── __init__.py
 │   ├── aatapp.py
+│   ├── activitystatemachine.py
+│   ├── adbutils.py
 │   ├── audiofunction.py
 │   ├── audiothread.py
+│   ├── googlemusichelper.py
+│   ├── __init__.py
 │   ├── logcatlistener.py
 │   ├── logger.py
+│   ├── README.md
 │   ├── tictoc.py
-│   ├── trials.py
-│   └── README.md
+│   └── trials.py
 ├── README.md
 ├── requirements.txt
 ├── scripts
