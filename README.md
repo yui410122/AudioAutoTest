@@ -29,6 +29,7 @@ AudioAutoTest/
 ├── README.md
 ├── requirements.txt
 ├── scripts
+│   ├── basic_test.py
 │   ├── example.py
 │   └── ssr_test.py
 └── tools-for-dev
