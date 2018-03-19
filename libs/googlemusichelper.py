@@ -8,11 +8,64 @@ import time
 from libs.activitystatemachine import ActivityStateMachine
 from libs.logger import Logger
 
+ERROR_MSG = "the handler has not been initialized, please call .walk_through()"
+
 def utf8str(s):
     try:
         return unicode(s).encode("UTF-8")
     except:
         return s
+
+class GMControlPanel(object):
+    def __init__(self, gmhandler):
+        self.handler = gmhandler
+        info = gmhandler.cache["control_panel"]
+        self.progress_pos = info["progress"]["position"]
+        self.progress_xb = info["progress"]["xbounds"]
+        self.playpause_pos = info["play_pause"]["position"]
+        self.prev_pos = info["prev"]["position"]
+        self.next_pos = info["next"]["position"]
+
+    def get_current_song(self):
+        vc = ViewClient(self.handler.device, self.handler.serialno)
+        so = sio.StringIO()
+        vc.traverse(stream=so)
+        line = [line for line in so.getvalue().splitlines() if GoogleMusicApp.CONTROL_PANEL_TRACKNAME_KEY in line]
+        line = line[0] if len(line) > 0 else None
+        if line:
+            name = utf8str(line.split(GoogleMusicApp.CONTROL_PANEL_TRACKNAME_KEY)[-1].strip())
+            for playcard_title, info in self.handler.cache["playcard"].items():
+                if "songs" in info.keys() and name in info["songs"].keys():
+                    song = dict(info["songs"][name])
+                    song["name"] = name
+                    song["playcard"] = playcard_title
+                    return song
+        return None
+
+    def play(self):
+        if not self.handler.is_playing():
+            self.play_pause()
+
+    def pause(self):
+        if self.handler.is_playing():
+            self.play_pause()
+
+    def play_pause(self):
+        self.handler.device.touch(*self.playpause_pos)
+
+    def next(self):
+        self.handler.device.touch(*self.next_pos)
+
+    def previous(self):
+        self.handler.device.touch(*self.prev_pos)
+
+    def seek(self, percentage):
+        if percentage < 0 or percentage > 1.0:
+            raise ValueError("the percentage should be in [0.0, 1.0]")
+        _, y = self.progress_pos
+        xmin, xmax = self.progress_xb
+        self.handler.device.touch((xmax-1-xmin)*percentage + xmin, y)
+
 
 class GoogleMusicApp(ActivityStateMachine):
     COMPONENT = "com.google.android.music/com.android.music.activitymanagement.TopLevelActivity"
@@ -24,6 +77,7 @@ class GoogleMusicApp(ActivityStateMachine):
     ART_PAGER_KEY = "com.google.android.music:id/art_pager"
     PLAY_PAUSE_HEADER_KEY = "com.google.android.music:id/play_pause_header"
 
+    CONTROL_PANEL_TRACKNAME_KEY = "com.google.android.music:id/trackname"
     CONTROL_PANEL_PROGRESS_KEY = "android:id/progress"
     CONTROL_PANEL_PLAY_PAUSE_KEY = "com.google.android.music:id/pause"
     CONTROL_PANEL_PREV_KEY = "com.google.android.music:id/prev"
@@ -65,7 +119,9 @@ class GoogleMusicApp(ActivityStateMachine):
             "dump": [],
             "dump-lock": threading.Lock()
         }
+        self.control_panel = None
         self.cache = {}
+        self.cache_init = False
 
     def log(self, text):
         Logger.log("GoogleMusicApp", text)
@@ -92,10 +148,13 @@ class GoogleMusicApp(ActivityStateMachine):
     def walk_through(self):
         if not self.to_top():
             Logger.log("GoogleMusicApp", "walk_through failed: unable to go to top activity")
+            self.cache_init = False
             return False
 
         # Get the playcard titles
         vc = ViewClient(self.device, self.serialno)
+
+        self.cache_init = True
 
         container_key = GoogleMusicApp.CONTAINER_KEY
         container = [v for v in vc.getViewsById().values() if v.getId() == container_key]
@@ -133,6 +192,7 @@ class GoogleMusicApp(ActivityStateMachine):
         map(lambda title: self.push_dump("playcard title: '{}'".format(title)), self.cache["playcard"].keys())
 
         if len(views) == 0:
+            self.cache_init = False
             return False
 
         self.cache["shuffle_key"] = playcards_titles[0]
@@ -190,24 +250,28 @@ class GoogleMusicApp(ActivityStateMachine):
             time.sleep(2)
             if self.get_state() != GoogleMusicApp.State.CONTROL_PANEL:
                 self.push_dump("cannot get the information of the control panel")
+                self.cache_init = False
                 return False
 
         def find_view_position(vc, res_id):
             v = [v for v in vc.getViewsById().values() if v.getId() == res_id]
             if len(v) == 0:
-                return (-1, -1)
-            return v[0].getCenter()
+                return ((-1, -1), (-1, -1)), (-1, -1)
+            return v[0].getBounds(), v[0].getCenter()
 
         vc.dump()
+        progress_bounds, progress_pos = find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PROGRESS_KEY)
         self.cache["control_panel"] = {
-            "progress": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PROGRESS_KEY) },
-            "prev": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PREV_KEY) },
-            "next": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_NEXT_KEY) },
-            "play_pause": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PLAY_PAUSE_KEY) }
+            "progress": { "position": progress_pos, "xbounds": [progress_bounds[0][0], progress_bounds[1][0]] },
+            "prev": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PREV_KEY)[1] },
+            "next": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_NEXT_KEY)[1] },
+            "play_pause": { "position": find_view_position(vc, GoogleMusicApp.CONTROL_PANEL_PLAY_PAUSE_KEY)[1] }
         }
+        self.control_panel = GMControlPanel(self)
         self.push_dump("successfully walked through, now back to top")
         self.to_top()
 
+        self.cache_init = True
         return True
 
     def is_playing(self):
@@ -229,6 +293,9 @@ class GoogleMusicApp(ActivityStateMachine):
         return False
 
     def get_playcards(self):
+        if not self.cache_init:
+            raise RuntimeError(ERROR_MSG)
+
         if "playcard" in self.cache.keys():
             return self.cache["playcard"]
         return {}
@@ -299,7 +366,36 @@ class GoogleMusicApp(ActivityStateMachine):
         map(lambda prop: self.push_dump("song_prop: {}".format(prop)), song_properties)
         return song_properties
 
+    def to_control_panel(self):
+        if not self.cache_init:
+            raise RuntimeError(ERROR_MSG)
+
+        self.device.touch(*self.cache["art_pager_view"]["position"])
+        return self.get_state() == GoogleMusicApp.State.CONTROL_PANEL
+
+    def find_song(self, song_title):
+        if not self.cache_init:
+            raise RuntimeError(ERROR_MSG)
+
+        found = []
+        for playcard_title, info in self.cache["playcard"].items():
+            if "songs" in info.keys() and song_title in info["songs"].keys():
+                found.append((playcard_title, info["songs"][song_title]))
+
+        return found
+
+    def touch_song(self, song):
+        if not self.cache_init:
+            raise RuntimeError(ERROR_MSG)
+
+        self._drag_up(drag_up_count=song["drag_up_count"])
+        self.device.touch(*song["position"])
+        return self.is_playing()
+
     def touch_playcard(self, li_title):
+        if not self.cache_init:
+            raise RuntimeError(ERROR_MSG)
+
         if not li_title in self.cache["playcard"].keys():
             self.push_dump("the li_title '{}' does not exist".format(li_title))
             return False
