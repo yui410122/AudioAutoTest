@@ -102,6 +102,10 @@ def run(num_iter=1):
         with open("{}{}ssr_report{}{}".format(ROOT_DIR, SEP, SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
 
+        num_valid = len(filter(lambda x: x, TrialHelper.pass_fail_list(trials)))
+        num_pass = len(filter(lambda x: x, TrialHelper.pass_fail_list(trials, lambda t: t.ds["extra"]["elapsed"] > 0)))
+        log("valid trials: {}/{}, pass trials: {}/{}".format(num_valid, len(trials), num_pass, num_valid))
+
         num_iter -= BATCH_SIZE
         batch_count += 1
 
