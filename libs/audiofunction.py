@@ -285,19 +285,25 @@ class DetectionStateListener(object):
         self.current_event = None
         Logger.init()
 
+    def clear(self):
+        with self.event_q.mutex:
+            self.event_q.queue.clear()
+            self.current_event = None
+
     def reset(self):
         # reset function must consider the event handling:
         #   if the current state is not None, the active/inactive event might have been sent
         #   and such event should be sent again because it must be same with the case of None -> active
         #   so the active/inactive event needs to be sent again before setting the current state to None
         active_or_inactive = None
-        if self.current_event:
+        with self.event_q.mutex:
+            current_event = self.current_event
+        if current_event:
             active_or_inactive = DetectionStateListener.Event.ACTIVE \
-                            if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
+                            if current_event[1] == ToneDetector.Event.TONE_DETECTED else \
                                  DetectionStateListener.Event.INACTIVE
 
-        with self.event_q.mutex:
-            self.event_q.queue.clear()
+        self.clear()
 
         if active_or_inactive:
             Logger.log("DetectionStateListener", "reset and resend the event ({}, 0)".format(active_or_inactive))
@@ -338,9 +344,11 @@ class DetectionStateListener(object):
                 if ev[0] == event:
                     return ev[1]
             except queue.Empty:
-                if self.current_event:
+                with self.event_q.mutex:
+                    current_event = self.current_event
+                if current_event:
                     active_or_inactive = DetectionStateListener.Event.ACTIVE \
-                        if self.current_event[1] == ToneDetector.Event.TONE_DETECTED else \
+                        if current_event[1] == ToneDetector.Event.TONE_DETECTED else \
                              DetectionStateListener.Event.INACTIVE
                     if active_or_inactive == event:
                         Logger.log("DetectionStateListener", "the current state '{}' fits the waited event".format(event))
