@@ -73,6 +73,13 @@ def run(num_iter=1):
         with open("{}{}{}{}{}".format(ROOT_DIR, SEP, REPORT_DIR, SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
 
+        for taskname, tasktrials in TrialHelper.categorize_in(trials, lambda t: t.ds["task"]).items():
+            valid_trials = zip(tasktrials, TrialHelper.pass_fail_list(tasktrials, lambda t: t.ds["status"] == "valid"))
+            valid_trials = [trial for trial, isvalid in valid_trials if isvalid]
+            num_valid = len(valid_trials)
+            num_pass = len(filter(lambda x: x, TrialHelper.pass_fail_list(valid_trials)))
+            log("task[{}] valid trials: {}/{}, pass trials: {}/{}".format(taskname, num_valid, len(tasktrials), num_pass, num_valid))
+
         num_iter -= BATCH_SIZE
         batch_count += 1
 
@@ -100,11 +107,26 @@ def playback_task_run(num_iter, num_seek_test, gmhandler):
         return []
 
     trials = []
+    def gmplayback_pass_check(trial):
+        subtasknames = ["pause", "resume", "next", "start", "seek"]
+        for subtaskname in subtasknames:
+            if not subtaskname in trial.ds["extra"].keys():
+                return False
+
+            subtask_result = trial.ds["extra"][subtaskname]
+            if isinstance(subtask_result, str) and subtask_result != "pass":
+                return False
+
+            if isinstance(subtask_result, dict) and subtask_result["result"] != "pass":
+                return False
+
+        return True
+
     stm = DetectionStateListener()
 
     for i in range(num_iter):
         log("-------- playback_task #{} --------".format(i+1))
-        trial = Trial(taskname="playback")
+        trial = Trial(taskname="playback", pass_check=gmplayback_pass_check)
         trial.put_extra(name="iter_id", value=i+1)
 
         song = gmhandler.control_panel.get_current_song()
@@ -150,6 +172,7 @@ def playback_task_run(num_iter, num_seek_test, gmhandler):
             gmhandler.control_panel.seek(v)
             time.sleep(0.1)
             if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
+                log("seek failed: the {}Hz tone is not detected".format(target_freq))
                 result = "failed"
 
         trial.put_extra("seek", {"num_trials": num_seek_test, "result": result})

@@ -102,9 +102,12 @@ def run(num_iter=1):
         with open("{}{}ssr_report{}{}".format(ROOT_DIR, SEP, SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
 
-        num_valid = len(filter(lambda x: x, TrialHelper.pass_fail_list(trials)))
-        num_pass = len(filter(lambda x: x, TrialHelper.pass_fail_list(trials, lambda t: t.ds["extra"]["elapsed"] > 0)))
-        log("valid trials: {}/{}, pass trials: {}/{}".format(num_valid, len(trials), num_pass, num_valid))
+        for taskname, tasktrials in TrialHelper.categorize_in(trials, lambda t: t.ds["task"]).items():
+            valid_trials = zip(tasktrials, TrialHelper.pass_fail_list(tasktrials, lambda t: t.ds["status"] == "valid"))
+            valid_trials = [trial for trial, isvalid in valid_trials if isvalid]
+            num_valid = len(valid_trials)
+            num_pass = len(filter(lambda x: x, TrialHelper.pass_fail_list(valid_trials)))
+            log("task[{}] valid trials: {}/{}, pass trials: {}/{}".format(taskname, num_valid, len(tasktrials), num_pass, num_valid))
 
         num_iter -= BATCH_SIZE
         batch_count += 1
@@ -137,7 +140,7 @@ def playback_task_run(device, num_iter=1):
     for i in range(num_iter):
         log("-------- playback_task #{} --------".format(i+1))
         for name, func in funcs.items():
-            trial = Trial(taskname="playback_{}".format(name))
+            trial = Trial(taskname="playback_{}".format(name), pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
             trial.put_extra(name="iter_id", value=i+1)
 
             AATApp.print_log(device, severity="i", tag=TAG, log="playback_{}_task #{}".format(name, i+1))
@@ -207,7 +210,7 @@ def record_task_run(device, serialno, num_iter=1):
     for i in range(num_iter):
         log("-------- record_task #{} --------".format(i+1))
 
-        trial = Trial(taskname="record")
+        trial = Trial(taskname="record", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
         AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
@@ -299,7 +302,7 @@ def voip_task_run(device, serialno, num_iter=1):
     for i in range(num_iter):
         log("-------- dev_voip_rx_task #{} --------".format(i+1))
 
-        trial = Trial(taskname="voip_rx")
+        trial = Trial(taskname="voip_rx", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
         AATApp.print_log(device, severity="i", tag=TAG, log="voip_rx_task #{}".format(i+1))
@@ -349,7 +352,7 @@ def voip_task_run(device, serialno, num_iter=1):
     for i in range(num_iter):
         log("-------- dev_voip_tx_task #{} --------".format(i+1))
 
-        trial = Trial(taskname="voip_tx")
+        trial = Trial(taskname="voip_tx", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
         AATApp.print_log(device, severity="i", tag=TAG, log="voip_tx_task #{}".format(i+1))
