@@ -6,12 +6,12 @@ class TrialHelper(object):
     def _check_type(trials):
         if not isinstance(trials, list):
             raise ValueError("The input must be an instance of list")
-        if not reduce( lambda x, y: x & y, map(lambda trial: isinstance(trial, Trial), trials) ):
+        if len(trials) > 0 and not reduce( lambda x, y: x & y, map(lambda trial: isinstance(trial, Trial), trials) ):
             raise ValueError("The input contains elements which are not instances of Trial")
 
     @staticmethod
     def _pass_fail_check(trial):
-        return trial.ds["status"] == "valid"
+        return trial.is_pass()
 
     @staticmethod
     def load(filename):
@@ -27,10 +27,11 @@ class TrialHelper(object):
         return trials
 
     @staticmethod
-    def categorize_in(trials, name):
+    def categorize_in(trials, cat_func):
+        TrialHelper._check_type(trials)
         trials_cat = {}
         for trial in trials:
-            key = trial.ds[name]
+            key = cat_func(trial)
             if not key in trials_cat.keys():
                 trials_cat[key] = []
 
@@ -52,7 +53,7 @@ class TrialHelper(object):
 
 
 class Trial(object):
-    def __init__(self, taskname=None):
+    def __init__(self, taskname=None, pass_check=None):
         self.ds = {
             "task": taskname,
             "timestamp": str(datetime.datetime.now()),
@@ -60,6 +61,12 @@ class Trial(object):
             "error-msg": None,
             "extra": None
         }
+        self.pass_check = pass_check
+
+    def is_pass(self):
+        if not self.is_pass:
+            raise ValueError("The pass/fail check function has not been defined")
+        return self.pass_check(self)
 
     def put_extra(self, name, value):
         if self.ds["extra"] == None:
