@@ -136,7 +136,7 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
             time_str = the_date + " " + the_time
 
             if shared_vars["last_freq"] != freq:
-                Logger.log("ToneDetectorForDeviceThread", \
+                self.push_to_dump( \
                     "the detected freq has been changed from {} to {} Hz".format(shared_vars["last_freq"], freq))
                 shared_vars["last_freq"] = freq
 
