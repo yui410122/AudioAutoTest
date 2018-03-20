@@ -215,6 +215,7 @@ class GoogleMusicApp(ActivityStateMachine):
                 art_pager_view = [v for v in vc.getViewsById().values() if v.getId() == art_pager_key]
                 art_pager_view = art_pager_view[0] if len(art_pager_view) > 0 else None
                 if not art_pager_view:
+                    retry_count -= 1
                     continue
                 self.cache["art_pager_view"] = { "position": art_pager_view.getCenter() }
 
@@ -223,6 +224,9 @@ class GoogleMusicApp(ActivityStateMachine):
             else:
                 self.push_dump("cannot find the play/pause button, retry: {}".format(retry_count))
                 retry_count -= 1
+
+        if retry_count == 0:
+            return False
 
         for li_title in self.cache["playcard"].keys():
             if li_title == self.cache["shuffle_key"]:
