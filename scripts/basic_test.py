@@ -54,6 +54,10 @@ def run(num_iter=1):
     filename = "report_{}{:02d}{:02d}_{:02d}{:02d}{:02d}.json".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
 
     device, serialno = ViewClient.connectToDeviceOrExit(serialno=None)
+
+    device.press("HOME")
+    time.sleep(1)
+
     gmhandler = GoogleMusicApp(device, serialno)
     log("gmhandler.to_top()")
     gmhandler.to_top()
@@ -66,6 +70,7 @@ def run(num_iter=1):
         log("-------- batch_run #{} --------".format(batch_count))
         trials_batch = []
         trials_batch += playback_task_run(num_iter=min([num_iter, BATCH_SIZE]), num_seek_test=5, gmhandler=gmhandler)
+        trials_batch += record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]), num_freqs=5)
 
         map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
         trials += trials_batch
@@ -200,8 +205,81 @@ def playback_task_run(num_iter, num_seek_test, gmhandler):
 
         trials.append(trial)
 
+    log("playback_task_run--")
     return trials
 
+def record_task_run(device, serialno, num_iter=1, num_freqs=1):
+    log("record_task_run++")
+    log("launch AAT app")
+    AATApp.launch_app(device)
+    time.sleep(2)
+
+    trials = []
+
+    log("dev_record_start")
+    AATApp.record_start(device)
+    time.sleep(2)
+
+    stm = DetectionStateListener()
+
+    def gen_freq():
+        import random
+        return 440. * 2**(random.randint(-12, 12)/12.)
+
+    for i in range(num_iter):
+        log("-------- record_task #{} --------".format(i+1))
+
+        trial = Trial(taskname="record", pass_check= \
+            lambda t: "result" in t.ds["extra"].keys() and t.ds["extra"]["result"] == "pass")
+        trial.put_extra(name="iter_id", value=i+1)
+
+        AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
+
+        result = "pass"
+        freqs = []
+        for _ in range(num_freqs):
+            stm.clear()
+            target_freq = gen_freq()
+            freqs.append(target_freq)
+
+            log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, target_freq))
+            ToneDetector.start_listen(serialno=serialno, target_freq=target_freq, cb=lambda event: stm.tone_detected_event_cb(event))
+            time.sleep(2)
+
+            log("AudioFunction.play_sound(out_freq={})".format(target_freq))
+            AudioFunction.play_sound(out_freq=target_freq)
+
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
+                log("The {}Hz tone is not detected".format(target_freq))
+
+                now = "_".join("{}".format(datetime.datetime.now()).split())
+                log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
+                AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
+
+                log("start dumping the process during capturing the frequency...")
+                ToneDetector.WORK_THREAD.dump()
+
+                result = "failed"
+
+            log("ToneDetectorForDeviceThread.adb-read-prop-max-elapsed: {} ms".format( \
+                ToneDetector.WORK_THREAD.extra["adb-read-prop-max-elapsed"]))
+            log("ToneDetectorForDeviceThread.freq-cb-max-elapsed: {} ms".format( \
+                ToneDetector.WORK_THREAD.extra["freq-cb-max-elapsed"]))
+
+            AudioFunction.stop_audio()
+            ToneDetector.stop_listen()
+            time.sleep(2)
+
+        trial.put_extra(name="result", value=result)
+        trial.put_extra(name="test_freqs", value=freqs)
+        trials.append(trial)
+
+    log("dev_record_stop")
+    AATApp.record_stop(device)
+    time.sleep(2)
+
+    log("record_task_run--")
+    return trials
 
 if __name__ == "__main__":
     num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
