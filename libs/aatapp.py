@@ -2,6 +2,14 @@ class AATApp(object):
     INTENT_PREFIX = "am broadcast -a"
     HTC_INTENT_PREFIX = "audio.htc.com.intent."
 
+    PACKAGE = "com.htc.audiofunctionsdemo"
+    MAINACTIVITY = ".activities.MainActivity"
+
+    @staticmethod
+    def launch_app(device):
+        component = AATApp.PACKAGE + "/" + AATApp.MAINACTIVITY
+        device.startActivity(component=component)
+
     @staticmethod
     def trigger_ssr(device):
         device.shell("asound -crashdsp")

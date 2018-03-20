@@ -71,10 +71,6 @@ def run(num_iter=1):
     t = datetime.datetime.now()
     filename = "report_{}{:02d}{:02d}_{:02d}{:02d}{:02d}.json".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
 
-    package = "com.htc.audiofunctionsdemo"
-    activity = ".activities.MainActivity"
-    component = package + "/" + activity
-
     device, serialno = ViewClient.connectToDeviceOrExit(serialno=None)
     push_files(serialno)
     wake_device(device, serialno)
@@ -84,7 +80,7 @@ def run(num_iter=1):
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py
     device.press("HOME")
     time.sleep(1)
-    device.startActivity(component=component)
+    AATApp.launch_app(device)
     time.sleep(1)
 
     trials = []
