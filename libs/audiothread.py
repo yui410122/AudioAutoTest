@@ -19,6 +19,18 @@ class AudioCommand(object):
     def __init__(self, config):
         self.config = config
 
+class RawRecordCommand(AudioCommand):
+    def __init__(self, config, framemillis=100):
+        super(RawRecordCommand, self).__init__(config)
+        self.framemillis = framemillis
+        self.is_recording = True
+
+    def stop(self):
+        self.is_recording = False
+
+    def reset(self):
+        self.is_recording = True
+
 class TonePlayCommand(AudioCommand):
     def __init__(self, config, out_freq):
         super(TonePlayCommand, self).__init__(config)
@@ -78,11 +90,13 @@ class AudioCommandThread(threading.Thread):
 
     def _process_command(self, cmd):
         if type(cmd) is TonePlayCommand:
-            self._process_playback_command(cmd)
+            self._process_tone_playback_command(cmd)
         elif type(cmd) is ToneDetectCommand:
-            self._process_detect_command(cmd)
+            self._process_tone_detect_command(cmd)
+        elif type(cmd) is RawRecordCommand:
+            self._process_raw_record_command(cmd)
 
-    def _process_playback_command(self, cmd):
+    def _process_tone_playback_command(self, cmd):
         phase_offset = 0
         cfg = cmd.config
 
@@ -112,7 +126,7 @@ class AudioCommandThread(threading.Thread):
             while cmd.is_playing:
                 sd.sleep(500)
 
-    def _process_detect_command(self, cmd):
+    def _process_tone_detect_command(self, cmd):
         cfg = cmd.config
         buff = np.array([])
         framesize = int(cfg.fs*cmd.framemillis/1000)
@@ -152,3 +166,40 @@ class AudioCommandThread(threading.Thread):
         with sd.InputStream(channels=cfg.ch, callback=record_cb, samplerate=cfg.fs, dtype="float32"):
             while cmd.is_detecting:
                 sd.sleep(500)
+
+    def _process_raw_record_command(self, cmd):
+        cfg = cmd.config
+        buff = np.array([])
+        framesize = int(cfg.fs*cmd.framemillis/1000)
+
+        # Make the code adaptive to both python 2 and 3
+        shared_vars = {
+            "cmd"      : cmd,
+            "buff"     : buff,
+            "framesize": framesize
+        }
+
+        def record_cb(indata, frames, time, status):
+            cmd = shared_vars["cmd"]
+            cfg = cmd.config
+            buff = shared_vars["buff"]
+            framesize = shared_vars["framesize"]
+
+            if buff.any():
+                buff = np.vstack((buff, indata[:, :]))
+            else:
+                buff = np.array(indata[:, :])
+
+            while buff.size >= framesize:
+                if cfg.cb:
+                    cfg.cb(indata=np.array(buff[:framesize, :]))
+
+                buff = buff[framesize:, :]
+
+            shared_vars["cmd"] = cmd
+            shared_vars["buff"] = buff
+            shared_vars["framesize"] = framesize
+
+        with sd.InputStream(channels=cfg.ch, callback=record_cb, samplerate=cfg.fs, dtype="float32"):
+            while cmd.is_recording:
+                sd.sleep(500)        

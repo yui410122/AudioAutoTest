@@ -12,7 +12,8 @@ AudioAutoTest/
 ├── audiofiles
 │   ├── 250Hz_wav.wav
 │   ├── 440Hz_mp3.mp3
-│   └── 440Hz_wav.wav
+│   ├── 440Hz_wav.wav
+│   └── song1.mp3
 ├── install.sh
 ├── libs
 │   ├── aatapp.py
@@ -25,6 +26,7 @@ AudioAutoTest/
 │   ├── logcatlistener.py
 │   ├── logger.py
 │   ├── README.md
+│   ├── signalmatcher.py
 │   ├── tictoc.py
 │   └── trials.py
 ├── README.md
