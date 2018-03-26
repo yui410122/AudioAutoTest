@@ -20,6 +20,7 @@ AudioAutoTest/
 │   ├── activitystatemachine.py
 │   ├── adbutils.py
 │   ├── audiofunction.py
+│   ├── audiosignalframelogger.py
 │   ├── audiothread.py
 │   ├── googlemusichelper.py
 │   ├── __init__.py
