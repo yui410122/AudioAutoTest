@@ -129,7 +129,8 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
         self.extra["dump-lock"] = threading.Lock()
 
         def freq_cb(msg):
-            strs = msg.split()
+            line = msg.splitlines()[0]
+            strs = line.split()
             freq, amp_db = map(float, strs[-1].split(","))
             the_date, the_time = strs[:2]
 
@@ -219,9 +220,11 @@ class ToneDetectorForServerThread(ToneDetectorThread):
             "last_event": None
         }
 
-        def freq_cb(detected_tone, detected_amp_db):
+        def freq_cb(detected_tones):
+            if len(detected_tones) == 0:
+                return
             time_str = datetime.datetime.strftime(datetime.datetime.now(), ToneDetector.TIME_STR_FORMAT)
-            freq = detected_tone
+            freq, amp = detected_tones[0]
 
             thresh = 2 if self.target_freq else 1
             if super(ToneDetectorForServerThread, self).target_detected(freq):

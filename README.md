@@ -27,6 +27,7 @@ AudioAutoTest/
 │   ├── logcatlistener.py
 │   ├── logger.py
 │   ├── README.md
+│   ├── signalanalyzer.py
 │   ├── signalmatcher.py
 │   ├── tictoc.py
 │   └── trials.py

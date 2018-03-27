@@ -3,6 +3,8 @@ import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
 
+from libs.signalanalyzer import find_peaks
+
 try:
     import queue
 except ImportError:
@@ -152,10 +154,11 @@ class AudioCommandThread(threading.Thread):
             while buff.size >= framesize:
                 spectrum = np.abs(fft(buff[:framesize, 0], cmd.nfft))
                 spectrum = spectrum[:int(cmd.nfft/2.0)]
-                max_idx = np.argmax(spectrum)
                 unit_freq = 1.0*cfg.fs / cmd.nfft
+                peaks = find_peaks(spectrum)
+                tones = map(lambda x: (x[0]*unit_freq, 20*np.log10(x[1])), peaks)
                 if cfg.cb:
-                    cfg.cb(detected_tone=max_idx*unit_freq, detected_amp_db=20*np.log10(spectrum[max_idx]))
+                    cfg.cb(detected_tones=tones)
 
                 buff = buff[framesize:, :]
 

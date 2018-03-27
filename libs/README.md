@@ -25,9 +25,13 @@ th.push(cmd)
 ```
 #### Detecting the frequency with its corresponding amplitude
 ```python
-def result_cb(detected_tone, detected_amp_db):
-    if detected_amp_db > 0:
-        print("detected: ", int(detected_tone), " Hz", end="\r", flush=True)
+def result_cb(detected_tones):
+    if len(detected_tones) == 0:
+        print("no detected tone.")
+        return
+    freq, amp = detected_tones[0]
+    if amp > 0:
+        print("detected: ", int(freq), " Hz", end="\r", flush=True)
 
 cmd = ToneDetectCommand(config=AudioConfig(fs=16000, cb=result_cb), framemillis=100, nfft=4096)
 th.push(cmd)
