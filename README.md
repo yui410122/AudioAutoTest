@@ -6,15 +6,17 @@ This is a auto-testing framework of audio functions for Android devices.
 ```
 AudioAutoTest/
 ├── apk
-│   └── debug
-│       ├── audiofunctionsdemo.apk
-│       └── output.json
+│   └── debug
+│       ├── audiofunctionsdemo.apk
+│       └── output.json
 ├── audiofiles
 │   ├── 250Hz_wav.wav
 │   ├── 440Hz_mp3.mp3
 │   ├── 440Hz_wav.wav
+│   ├── 442Hz_wav_glitched.wav
+│   ├── 442Hz_wav_popped.wav
+│   ├── 442Hz_wav.wav
 │   └── song1.mp3
-├── install.sh
 ├── libs
 │   ├── aatapp.py
 │   ├── activitystatemachine.py
@@ -34,13 +36,16 @@ AudioAutoTest/
 ├── README.md
 ├── requirements.txt
 ├── scripts
-│   ├── basic_test.py
-│   ├── example.py
-│   └── ssr_test.py
+│   ├── basic_test.py
+│   ├── example.py
+│   ├── playback_demo.py
+│   └── ssr_test.py
 └── tools-for-dev
     ├── dump-screen.py
+    ├── gendefect.py
     ├── genwave.py
-    └── viewclient-example.py
+    ├── viewclient-example.py
+    └── visaudio.py
 ```
 
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)

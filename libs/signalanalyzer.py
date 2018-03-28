@@ -1,5 +1,10 @@
 import numpy as np
 
+def sort_values(signal):
+	signal = np.array(signal)
+	idices = np.argsort(signal, axis=0)
+	return zip(list(idices), list(signal[idices]))
+
 def find_peaks(signal):
 	peaks = []
 	max_idx = np.argmax(signal)
