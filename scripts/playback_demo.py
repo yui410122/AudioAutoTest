@@ -86,7 +86,7 @@ def run(num_iter=1):
             if len(signal_spectrum) > 0 and len(noise_spectrum) > 0:
                 snr = np.mean(map(lambda x: x[1], signal_spectrum)) / np.mean(map(lambda x: x[1], noise_spectrum))
                 snr = 20*np.log10(snr)
-                if snr > 20:
+                if target_detected(freq=spectrum[0][0], target_freq=FREQ):
                     if push_tictoc.extra["max_snr"] == None or push_tictoc.extra["max_snr"][0] < snr:
                         push_tictoc.extra["max_snr"] = [snr, push_tictoc.extra["push_count"]-1]
                     if push_tictoc.extra["min_snr"] == None or push_tictoc.extra["min_snr"][0] > snr:
