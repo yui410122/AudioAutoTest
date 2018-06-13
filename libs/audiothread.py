@@ -146,7 +146,7 @@ class AudioCommandThread(threading.Thread):
             buff = shared_vars["buff"]
             framesize = shared_vars["framesize"]
 
-            if buff.any():
+            if buff.size > 0:
                 buff = np.vstack((buff, indata[:, :]))
             else:
                 buff = np.array(indata[:, :])
@@ -205,4 +205,4 @@ class AudioCommandThread(threading.Thread):
 
         with sd.InputStream(channels=cfg.ch, callback=record_cb, samplerate=cfg.fs, dtype="float32"):
             while cmd.is_recording:
-                sd.sleep(500)        
+                sd.sleep(500)
