@@ -157,28 +157,35 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                     shared_vars["start_time"] = None
                     self.push_to_dump("the tone is not detected and the event_counter is over the threshold")
                     self.push_to_dump("last_event: \"{}\"".format(shared_vars["last_event"]))
-                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
-                        Logger.log("ToneDetectorForDeviceThread", "send_cb({}, TONE_MISSING)".format(time_str))
-                        self.cb((time_str, ToneDetector.Event.TONE_MISSING))
-                        shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
+                if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
+                    Logger.log("ToneDetectorForDeviceThread", "send_cb({}, TONE_MISSING)".format(time_str))
+                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                    shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
 
             if self.event_counter <= thresh: self.push_to_dump("event_counter: {}".format(self.event_counter))
 
-        Adb.execute(cmd= \
-            ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
-            serialno=self.serialno)
+        # Adb.execute(cmd= \
+        #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
+        #     serialno=self.serialno)
 
         from libs.tictoc import TicToc
         freq_cb_tictoc = TicToc()
         adb_tictoc = TicToc()
 
+        tcount = 0
         freq_cb_tictoc.tic()
         while not self.stoprequest.isSet():
             adb_tictoc.tic()
             msg, _ = Adb.execute(cmd=["shell", "cat", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
                 serialno=self.serialno, tolog=False)
             elapsed = adb_tictoc.toc()
+            if tcount == 0:
+                Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
+                    serialno=self.serialno, tolog=False)
+
+            if not "," in msg:
+                msg = "0,-30"
 
             if elapsed > self.extra["adb-read-prop-max-elapsed"]:
                 self.extra["adb-read-prop-max-elapsed"] = elapsed
@@ -201,10 +208,12 @@ class ToneDetectorForDeviceThread(ToneDetectorThread):
                     self.extra["freq-cb-max-elapsed"] = elapsed
 
             time.sleep(0.01)
+            tcount += 1
+            tcount %= 10
 
-        Adb.execute(cmd= \
-            ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "0"], \
-            serialno=self.serialno)
+        # Adb.execute(cmd= \
+        #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "0"], \
+        #     serialno=self.serialno)
 
 
 class ToneDetectorForServerThread(ToneDetectorThread):
@@ -226,7 +235,7 @@ class ToneDetectorForServerThread(ToneDetectorThread):
             time_str = datetime.datetime.strftime(datetime.datetime.now(), ToneDetector.TIME_STR_FORMAT)
             freq, amp = detected_tones[0]
 
-            thresh = 2 if self.target_freq else 1
+            thresh = 10 if self.target_freq else 1
             if super(ToneDetectorForServerThread, self).target_detected(freq):
                 self.event_counter += 1
                 if self.event_counter == 1:
@@ -273,6 +282,10 @@ class ToneDetector(object):
     def stop_listen():
         ToneDetector.WORK_THREAD.join()
         ToneDetector.WORK_THREAD = None
+
+    @staticmethod
+    def set_target_frequency(target_freq):
+        ToneDetector.WORK_THREAD.target_freq = target_freq
 
 class DetectionStateListener(object):
     class Event(object):

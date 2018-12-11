@@ -1,3 +1,5 @@
+import os
+
 class AATApp(object):
     INTENT_PREFIX = "am broadcast -a"
     HTC_INTENT_PREFIX = "audio.htc.com.intent."
@@ -6,13 +8,14 @@ class AATApp(object):
     MAINACTIVITY = ".activities.MainActivity"
 
     @staticmethod
+    def relauch_app(device):
+        device.shell("am force-stop {}".format(AATApp.PACKAGE))
+        AATApp.launch_app(device)
+
+    @staticmethod
     def launch_app(device):
         component = AATApp.PACKAGE + "/" + AATApp.MAINACTIVITY
         device.startActivity(component=component)
-
-    @staticmethod
-    def trigger_ssr(device):
-        device.shell("asound -crashdsp")
 
     @staticmethod
     def playback_nonoffload(device, filename="440Hz.wav"):
