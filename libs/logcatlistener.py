@@ -40,7 +40,7 @@ class LogcatOutputThread(threading.Thread):
         preexec_fn = None if platform.system() == "Windows" else os.setsid
         cmd = ["adb", "-s", self.serialno, "logcat"]
         cmd = cmd + ["-b", self.buffername] if self.buffername else cmd
-        Logger.log("LogcatOutputThread", "threadloop is listening with the command '{}'".format(" ".join(cmd)))
+        Logger.log("LogcatOutputThread", "threadloop is listening with the command '{}'".format(cmd))
         self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, preexec_fn=preexec_fn)
         while not self.stoprequest.isSet():
             if self.proc.poll() != None:
@@ -49,8 +49,11 @@ class LogcatOutputThread(threading.Thread):
             line = self.proc.stdout.readline()
             self._handle_logcat_msg(line)
 
-        if platform.system() != "Windows":
-            os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+        try:
+            if platform.system() != "Windows":
+                os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+        except:
+            pass
 
     def _handle_logcat_msg(self, msg):
         for pattern in self.listeners.keys():
@@ -91,16 +94,18 @@ class LogcatListener(object):
         return out.splitlines()[1].split("\t")[0] if len(out.splitlines()) > 1 else None
 
     @staticmethod
-    def init(serialno=None, buffername="device"):
+    def init(serialno=None, buffername="device", flush=False):
         if not serialno:
             serialno = LogcatListener._find_first_device_serialno()
         if not serialno:
             return
 
-        if serialno in LogcatListener.WORK_THREADS.keys():
-            return
-
         threadname = "{}-{}".format(serialno, buffername)
+        if serialno in LogcatListener.WORK_THREADS.keys():
+            if not flush:
+                return
+            LogcatListener.WORK_THREADS[threadname].join(timeout=10)
+
         LogcatListener.WORK_THREADS[threadname] = LogcatOutputThread(serialno, buffername)
         LogcatListener.WORK_THREADS[threadname].start()
 
