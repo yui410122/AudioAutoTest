@@ -185,9 +185,14 @@ class GoogleMusicApp(ActivityStateMachine):
 
         # Get the track list of each playcard
         views = [v for v in vc.getViewsById().values() if v.getId() == li_title_key and utf8str(v.getText()) in playcards_titles]
-        self.cache["playcard"] = dict( \
-                map(lambda v: (utf8str(v.getText()), { "position": v.getCenter() }), views)
-            )
+        self.cache["playcard"] = {}
+
+        for v in views:
+            if utf8str(v.getText()) in self.cache["playcard"]:
+                self.cache["playcard"][utf8str(v.getText())]["position"].append(v.getCenter())
+            else:
+                self.cache["playcard"][utf8str(v.getText())] = { "position": [v.getCenter()] }
+
         map(lambda v: self.push_dump("view: {}".format(utf8str(v))), views)
         map(lambda title: self.push_dump("playcard title: '{}'".format(title)), self.cache["playcard"].keys())
 
@@ -232,10 +237,12 @@ class GoogleMusicApp(ActivityStateMachine):
             if li_title == self.cache["shuffle_key"]:
                 continue
             self.push_dump("now fetching information in the playcard '{}'".format(li_title))
-            if self.touch_playcard(li_title=li_title):
-                time.sleep(1)
-                self.cache["playcard"][li_title]["songs"] = self._fetch_songs()
-                self.to_top()
+            self.cache["playcard"][li_title]["songs"] = []
+            for idx in range(len(self.cache["playcard"][li_title]["position"])):
+                if self.touch_playcard(li_title=li_title, idx=idx):
+                    time.sleep(1)
+                    self.cache["playcard"][li_title]["songs"].append(self._fetch_songs())
+                    self.to_top()
 
         # Get the information of the control panel
         retry_count = 3
@@ -396,7 +403,7 @@ class GoogleMusicApp(ActivityStateMachine):
         self.device.touch(*song["position"])
         return self.is_playing()
 
-    def touch_playcard(self, li_title):
+    def touch_playcard(self, li_title, idx=0):
         if not self.cache_init:
             raise RuntimeError(ERROR_MSG)
 
@@ -404,7 +411,7 @@ class GoogleMusicApp(ActivityStateMachine):
             self.push_dump("the li_title '{}' does not exist".format(li_title))
             return False
 
-        self.device.touch(*self.cache["playcard"][li_title]["position"])
+        self.device.touch(*self.cache["playcard"][li_title]["position"][idx])
         return True
 
     def get_state(self):
