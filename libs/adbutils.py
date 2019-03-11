@@ -36,3 +36,17 @@ class Adb(object):
 		if tolog:
 			log("exec: {}".format(cmd))
 		return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+
+	@staticmethod
+	def device_fingerprint(serialno=None, tolog=True):
+		return Adb.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
+
+	@staticmethod
+	def device_stayon(serialno=None, tolog=True):
+		return Adb.execute(["shell", "svc", "power", "stayon", "true"], serialno=serialno, tolog=tolog)
+
+	@staticmethod
+	def device_unlock(serialno=None, tolog=True):
+		if tolog:
+			log("unlock the screen")
+		return Adb.execute(["shell", "input", "keyevent", "82"], serialno=serialno, tolog=tolog)

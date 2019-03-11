@@ -17,12 +17,13 @@ class LoggerThread(threading.Thread):
     BUF_SIZE = 10
     LOG_DIR = ROOT_DIR + "{}log{}".format(SEP, SEP)
 
-    def __init__(self, max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
+    def __init__(self, prefix="", max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
         super(LoggerThread, self).__init__()
         self.daemon = True
         self.msg_q = queue.Queue()
         self.stoprequest = threading.Event()
         self.msg_stream = sio.StringIO()
+        self.prefix = prefix
         self.max_size = max_size
         self.buf_size = buf_size
         self.current_size = 0
@@ -49,8 +50,8 @@ class LoggerThread(threading.Thread):
             return
 
         t = self.log_timestamp
-        
-        filename = "{}{:02d}{:02d}_{:02d}{:02d}{:02d}.log.txt".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
+        prefix = "{}-".format(self.prefix) if len(self.prefix) > 0 else ""
+        filename = "{}{}{:02d}{:02d}_{:02d}{:02d}{:02d}.log.txt".format(prefix, t.year, t.month, t.day, t.hour, t.minute, t.second)
         with open(self.log_dir + filename, "a") as f:
             self.msg_stream.seek(0)
             shutil.copyfileobj(self.msg_stream, f)
@@ -99,7 +100,7 @@ class LoggerThread(threading.Thread):
             self.current_size = 0
 
 class Logger(object):
-    WORK_THREAD = LoggerThread()
+    WORK_THREAD = None
     HAS_BEEN_INIT = False
 
     class Mode(object):
@@ -108,9 +109,11 @@ class Logger(object):
         BOTH_FILE_AND_STDOUT = STDOUT | FILE
 
     @staticmethod
-    def init(mode=Mode.BOTH_FILE_AND_STDOUT):
+    def init(mode=Mode.BOTH_FILE_AND_STDOUT, prefix=""):
         if Logger.HAS_BEEN_INIT:
             return
+
+        Logger.WORK_THREAD = LoggerThread(prefix=prefix)
 
         if mode & Logger.Mode.STDOUT > 0:
             Logger.WORK_THREAD.to_stdout()
@@ -132,4 +135,8 @@ class Logger(object):
 
     @staticmethod
     def log(tag, msg):
+        if not Logger.HAS_BEEN_INIT:
+            print("[{}] {}: {}".format(datetime.datetime.now(), tag, msg))
+            return
+
         Logger.WORK_THREAD.push("{}: {}".format(tag, msg))
