@@ -14,7 +14,7 @@ from libs.logger import Logger
 from libs.aatapp import AATApp
 from libs.trials import Trial, TrialHelper
 
-RELAUCH = True
+RELAUNCH = True
 TEST_CONFIG = "asr" # "ssr"|"asr"
 TAG = "{}_test.py".format(TEST_CONFIG)
 
@@ -45,9 +45,9 @@ def trigger_ssr(serialno):
 def trigger_asr(serialno):
     Adb.execute(["shell", "killall", "audioserver"], serialno=serialno)
 
-def relauch_app(device):
-    if RELAUCH:
-        AATApp.relauch_app(device)
+def relaunch_app(device):
+    if RELAUNCH:
+        AATApp.relaunch_app(device)
         time.sleep(5)
 
 def trigger_bugreport(serialno):
@@ -129,7 +129,7 @@ def run(num_iter=1, serialno=None):
     #   https://github.com/dtmilano/AndroidViewClient/blob/master/src/com/dtmilano/android/adb/androidkeymap.py
     # device.press("HOME")
     # time.sleep(1)
-    relauch_app(device)
+    relaunch_app(device)
     # time.sleep(5)
 
     function_items = [
@@ -287,7 +287,7 @@ def playback_task_run(device, num_iter=1, postfix=None):
     ToneDetector.stop_listen()
 
     log("playback_task_run--")
-    relauch_app(device)
+    relaunch_app(device)
     return trials
 
 def record_task_run(device, serialno, num_iter=1):
@@ -398,7 +398,7 @@ def record_task_run(device, serialno, num_iter=1):
     ToneDetector.stop_listen()
 
     log("record_task_run--")
-    relauch_app(device)
+    relaunch_app(device)
     return trials
 
 def voip_task_run(device, serialno, num_iter=1):
@@ -572,7 +572,7 @@ def voip_task_run(device, serialno, num_iter=1):
     ToneDetector.stop_listen()
 
     log("voip_task_run--")
-    relauch_app(device)
+    relaunch_app(device)
     return trials
 
 

@@ -8,7 +8,7 @@ class AATApp(object):
     MAINACTIVITY = ".activities.MainActivity"
 
     @staticmethod
-    def relauch_app(device):
+    def relaunch_app(device):
         device.shell("am force-stop {}".format(AATApp.PACKAGE))
         AATApp.launch_app(device)
 
