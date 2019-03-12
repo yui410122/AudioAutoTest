@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 from libs import ROOT_DIR, SEP, STDNUL
 from libs.logger import Logger
 from libs.aatapp import AATApp
+from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.trials import Trial, TrialHelper
 from libs.adbutils import Adb
@@ -243,7 +244,7 @@ def record_task_run(device, serialno, num_iter=1, num_freqs=1):
             freqs.append(target_freq)
 
             log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, target_freq))
-            ToneDetector.start_listen(serialno=serialno, target_freq=target_freq, cb=lambda event: stm.tone_detected_event_cb(event))
+            ToneDetector.start_listen(serialno=serialno, target_freq=target_freq, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
             time.sleep(2)
 
             log("AudioFunction.play_sound(out_freq={})".format(target_freq))

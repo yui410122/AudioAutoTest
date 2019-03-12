@@ -13,6 +13,7 @@ from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.logger import Logger
 from libs.aatapp import AATApp
+from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
 
 TAG = "example.py"
 OUT_FREQ = 440
@@ -104,7 +105,7 @@ def record_task_run(device, serialno):
     th = DetectionStateListener()
 
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, OUT_FREQ))
-    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=OUT_FREQ, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
     log("AudioFunction.play_sound(out_freq={})".format(OUT_FREQ))
     AudioFunction.play_sound(out_freq=OUT_FREQ)
 

@@ -78,3 +78,137 @@ class AATApp(object):
         cmd = " ".join([AATApp.INTENT_PREFIX, AATApp.HTC_INTENT_PREFIX + "log.print",
             "--es", "sv", str(severity), "--es", "tag", str(tag), "--es", "log", "\"{}\"".format(log)])
         device.shell(cmd)
+
+import threading
+import time
+from audiofunction import ToneDetectorThread, ToneDetector
+from logger import Logger
+from adbutils import Adb
+
+class AATAppToneDetectorThread(ToneDetectorThread):
+    def __init__(self, serialno, target_freq, callback):
+        super(AATAppToneDetectorThread, self).__init__(target_freq=target_freq, callback=callback)
+        self.serialno = serialno
+
+    def push_to_dump(self, msg):
+        self.extra["dump-lock"].acquire()
+        self.extra["dump"].append(msg)
+        self.extra["dump-lock"].release()
+
+    def clear_dump(self):
+        self.extra["dump-lock"].acquire()
+        del self.extra["dump"][:]
+        self.extra["dump-lock"].release()
+
+    def dump(self):
+        self.extra["dump-lock"].acquire()
+        Logger.log("AATAppToneDetectorThread", "dump called")
+        Logger.log("AATAppToneDetectorThread", "----------------------------------------------")
+        map(lambda msg: Logger.log("AATAppToneDetectorThread::dump", "\"{}\"".format(msg)), self.extra["dump"])
+        del self.extra["dump"][:]
+        Logger.log("AATAppToneDetectorThread", "----------------------------------------------")
+        self.extra["dump-lock"].release()
+
+    def join(self, timeout=None):
+        super(AATAppToneDetectorThread, self).join(timeout)
+
+    def run(self):
+        shared_vars = {
+            "start_time": None,
+            "last_event": None,
+            "last_freq": -1
+        }
+
+        self.extra = {}
+        self.extra["adb-read-prop-max-elapsed"] = -1
+        self.extra["freq-cb-max-elapsed"] = -1
+        self.extra["dump"] = []
+        self.extra["dump-lock"] = threading.Lock()
+
+        def freq_cb(msg):
+            line = msg.splitlines()[0]
+            strs = line.split()
+            freq, amp_db = map(float, strs[-1].split(","))
+            the_date, the_time = strs[:2]
+
+            time_str = the_date + " " + the_time
+
+            if shared_vars["last_freq"] != freq:
+                self.push_to_dump( \
+                    "the detected freq has been changed from {} to {} Hz".format(shared_vars["last_freq"], freq))
+                shared_vars["last_freq"] = freq
+
+            thresh = 10 if self.target_freq else 1
+            if super(AATAppToneDetectorThread, self).target_detected(freq):
+                self.event_counter += 1
+                if self.event_counter == 1:
+                    shared_vars["start_time"] = time_str
+                if self.event_counter == thresh:
+                    if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_DETECTED:
+                        Logger.log("AATAppToneDetectorThread", "send_cb({}, TONE_DETECTED)".format(shared_vars["start_time"]))
+                        self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
+                        shared_vars["last_event"] = ToneDetector.Event.TONE_DETECTED
+
+            else:
+                if self.event_counter > thresh:
+                    shared_vars["start_time"] = None
+                    self.push_to_dump("the tone is not detected and the event_counter is over the threshold")
+                    self.push_to_dump("last_event: \"{}\"".format(shared_vars["last_event"]))
+                if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
+                    Logger.log("AATAppToneDetectorThread", "send_cb({}, TONE_MISSING)".format(time_str))
+                    self.cb((time_str, ToneDetector.Event.TONE_MISSING))
+                    shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
+                self.event_counter = 0
+
+            if self.event_counter <= thresh: self.push_to_dump("event_counter: {}".format(self.event_counter))
+
+        # Adb.execute(cmd= \
+        #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
+        #     serialno=self.serialno)
+
+        from libs.tictoc import TicToc
+        freq_cb_tictoc = TicToc()
+        adb_tictoc = TicToc()
+
+        tcount = 0
+        freq_cb_tictoc.tic()
+        while not self.stoprequest.isSet():
+            adb_tictoc.tic()
+            msg, _ = Adb.execute(cmd=["shell", "cat", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
+                serialno=self.serialno, tolog=False)
+            elapsed = adb_tictoc.toc()
+            if tcount == 0:
+                Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], \
+                    serialno=self.serialno, tolog=False)
+
+            if not "," in msg:
+                msg = "0,-30"
+
+            if elapsed > self.extra["adb-read-prop-max-elapsed"]:
+                self.extra["adb-read-prop-max-elapsed"] = elapsed
+
+            if "," in msg:
+                msg = msg.replace("\n", "")
+                import datetime
+                t = datetime.datetime.now()
+                msg = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:06d} {}".format( \
+                    t.month, t.day, t.hour, t.minute, t.second, t.microsecond, msg)
+
+                try:
+                    self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(msg, elapsed))
+                    freq_cb(msg)
+                except Exception as e:
+                    Logger.log("ToneDetectorThread", "crashed in freq_cb('{}')".format(msg))
+                    print(e)
+
+                elapsed = freq_cb_tictoc.toc()
+                if elapsed > self.extra["freq-cb-max-elapsed"]:
+                    self.extra["freq-cb-max-elapsed"] = elapsed
+
+            time.sleep(0.01)
+            tcount += 1
+            tcount %= 10
+
+        # Adb.execute(cmd= \
+        #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "0"], \
+        #     serialno=self.serialno)

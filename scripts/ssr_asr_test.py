@@ -12,6 +12,7 @@ from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.logger import Logger
 from libs.aatapp import AATApp
+from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
 from libs.trials import Trial, TrialHelper
 
 RELAUNCH = True
@@ -104,9 +105,7 @@ def try_to_reboot_device(serialno, timeout):
 
 def run(num_iter=1, serialno=None):
     AudioFunction.init()
-    Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT)
-    # Logger.init(Logger.Mode.STDOUT)
-    # Logger.init(Logger.Mode.FILE)
+    Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT, prefix="{}-{}".format(TEST_CONFIG, serialno))
     Adb.init()
 
     os.system("mkdir -p {}{}{}_report > {}".format(ROOT_DIR, SEP, TEST_CONFIG, STDNUL))
@@ -182,15 +181,6 @@ def run(num_iter=1, serialno=None):
             else:
                 time.sleep(5)
                 device, serialno = ViewClient.connectToDeviceOrExit(serialno=serialno)
-
-        # elif batch_count % 10 == 0:
-        #     log("Try to reboot the device and continue the test...")
-        #     if not try_to_reboot_device(serialno, timeout=300):
-        #         log("reboot failed!")
-        #         os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, TEST_CONFIG, SEP, postfix, SEP))
-        #         break
-        #     else:
-        #         device, serialno = ViewClient.connectToDeviceOrExit(serialno=serialno)
 
         os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, TEST_CONFIG, SEP, postfix, SEP))
 
@@ -304,7 +294,7 @@ def record_task_run(device, serialno, num_iter=1):
 
     out_freq = OUT_FREQ
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, out_freq))
-    ToneDetector.start_listen(serialno=serialno, target_freq=out_freq, cb=lambda event: stm.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=out_freq, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
     log("AudioFunction.play_sound(out_freq={})".format(out_freq))
 
     has_triggered_bugreport = False
@@ -482,7 +472,7 @@ def voip_task_run(device, serialno, num_iter=1):
     AATApp.voip_mute_output(device)
     time.sleep(10)
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, 440))
-    ToneDetector.start_listen(serialno=serialno, target_freq=440, cb=lambda event: stm.tone_detected_event_cb(event))
+    ToneDetector.start_listen(serialno=serialno, target_freq=440, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
 
     has_triggered_bugreport = False
 
