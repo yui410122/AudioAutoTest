@@ -261,3 +261,185 @@ class AudioWorkerApp(object):
     @staticmethod
     def print_log(device=None, serialno=None, severity="i", tag="AudioWorkerAPIs", log=None):
         pass
+
+
+import threading
+import time
+from tictoc import TicToc
+from audiofunction import ToneDetectorThread, ToneDetector
+from aatapp import AATAppToneDetectorThread
+from logger import Logger
+
+class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
+    def __init__(self, serialno, target_freq, callback, detector_reg_func, detector_setparams_func, info_func):
+        super(AudioWorkerToneDetectorThread, self).__init__(serialno=serialno, target_freq=target_freq, callback=callback)
+        self.serialno = serialno
+        self.chandle = None
+        self.detector_reg_func = detector_reg_func
+        self.detector_setparams_func = detector_setparams_func
+        self.info_func = info_func
+        self.detector_reg_func(serialno=serialno, dclass="ToneDetector", params={"target-freq": [target_freq]})
+
+    def get_tag(self):
+        return "AudioWorkerToneDetectorThread"
+
+    def get_info(self):
+        # [
+        #   {
+        #     "params": {
+        #       "num-channels": 2,
+        #       "sampling-freq": 16000,
+        #       "pcm-bit-width": 16,
+        #       "dump-buffer-ms": 0
+        #     },
+        #     "class": "com.google.audioworker.functions.audio.record.RecordStartFunction",
+        #     "has-ack": false
+        #   },
+        #   {
+        #     "com.google.audioworker.functions.audio.record.detectors.ToneDetector@af8d417": {
+        #       "Targets": [
+        #         {
+        #           "target-freq": 440
+        #         }
+        #       ],
+        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@af8d417",
+        #       "Process Frame Size": 50,
+        #       "unit": {
+        #         "Process Frame Size": "ms",
+        #         "Sampling Frequency": "Hz"
+        #       },
+        #       "Sampling Frequency": 16000
+        #     }
+        #   }
+        # ]
+        info = self.info_func(serialno=self.serialno)
+        if not info:
+            Logger.log("{}::get_info".format(self.get_tag()), "no active record, null info returned")
+            return
+
+        detectors = info[1]
+        chandle = None
+        for key, value in detectors.items():
+            for each in value["Targets"]:
+                if super(AudioWorkerToneDetectorThread, self).target_detected(each["target-freq"]):
+                    chandle = key
+                    break
+            if chandle:
+                Logger.log("{}::get_info".format(self.get_tag()), "found detector handle: {}".format(chandle))
+
+        if not chandle:
+            Logger.log("{}::get_info".format(self.get_tag()), "no detector handle!")
+            Logger.log("{}::get_info".format(self.get_tag()))
+            self.dump()
+        else:
+            self.chandle = chandle
+
+    def enable_detect_dump(self, enable):
+        self.get_info()
+        if not self.chandle:
+            return
+
+        self.detector_setparams_func(
+            serialno=self.serialno, chandle=self.chandle, params={"dump-history": str(enable).lower()})
+
+    def set_target_frequency(self, target_freq):
+        self.target_freq = target_freq
+        self.detector_setparams_func(
+            serialno=self.serialno, chandle=self.chandle,
+            params={"target-freq": [target_freq], "clear-target": "false", "dump-history": "true"})
+        self.shared_vars["msg"] = None
+
+    def run(self):
+        self.shared_vars = {
+            "start_time": None,
+            "last_event": None,
+            "last_state": None,
+            "msg": None,
+            "tictoc": TicToc(),
+            "state_keep_ms": 0
+        }
+
+        self.extra = {}
+        self.extra["adb-read-prop-max-elapsed"] = -1
+        self.extra["freq-cb-max-elapsed"] = -1
+        self.extra["dump"] = []
+        self.extra["dump-lock"] = threading.Lock()
+
+        self.shared_vars["tictoc"].tic()
+
+        def freq_cb(msg):
+            line = msg.splitlines()[0].strip()
+            strs = line.split()
+            t = datetime.datetime.fromtimestamp(float(strs[0][:-1]) / 1000.)
+            freq = float(strs[1])
+
+            if not self.target_detected(freq):
+                self.push_to_dump(
+                    "the frequency {} Hz is not the target".format(freq))
+                return
+
+            active = (strs[2].lower() == "active")
+
+            if not self.shared_vars["start_time"]:
+                self.shared_vars["start_time"] = t
+
+            if active != self.shared_vars["last_state"]:
+                self.push_to_dump(
+                    "the detection state has been changed from {} to {}".format(self.shared_vars["last_state"], active))
+                self.shared_vars["last_state"] = active
+                self.shared_vars["start_time"] = t
+                self.shared_vars["tictoc"].toc()
+                self.shared_vars["state_keep_ms"] = 0
+
+            t = self.shared_vars["start_time"]
+            t_str = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:06d}".format(
+                t.month, t.day, t.hour, t.minute, t.second, t.microsecond)
+
+            self.shared_vars["state_keep_ms"] += self.shared_vars["tictoc"].toc()
+            if self.shared_vars["state_keep_ms"] > 200:
+                event = ToneDetector.Event.TONE_DETECTED if active else ToneDetector.Event.TONE_MISSING
+                if self.shared_vars["last_event"] != event:
+                    self.shared_vars["last_event"] = event
+                    Logger.log(self.get_tag(), "send_cb({}, {})".format(t_str, "TONE_DETECTED" if active else "TONE_MISSING"))
+                    self.cb((t_str, event))
+
+        self.enable_detect_dump(enable=True)
+
+        freq_cb_tictoc = TicToc()
+        adb_tictoc = TicToc()
+
+        tcount = 0
+        freq_cb_tictoc.tic()
+        while not self.stoprequest.isSet():
+            if not self.chandle:
+                self.get_info()
+
+            adb_tictoc.tic()
+            msg_in_device, _ = Adb.execute(cmd=["shell", "cat /storage/emulated/0/Google-AudioWorker-data/{}.txt".format(self.chandle)],
+                serialno=self.serialno, tolog=False)
+            elapsed = adb_tictoc.toc()
+
+            msg_in_device = map(lambda x: x.strip(), msg_in_device.splitlines())
+            msg_in_device = [x for x in msg_in_device if self.target_detected(float(x.split()[1]))]
+            self.shared_vars["msg"] = msg_in_device[-1] if len(msg_in_device) > 0 else self.shared_vars["msg"]
+
+            if elapsed > self.extra["adb-read-prop-max-elapsed"]:
+                self.extra["adb-read-prop-max-elapsed"] = elapsed
+
+            if self.shared_vars["msg"]:
+                try:
+                    self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(self.shared_vars["msg"], elapsed))
+                    freq_cb(self.shared_vars["msg"])
+                except Exception as e:
+                    Logger.log(self.get_tag(), "crashed in freq_cb('{}')".format(self.shared_vars["msg"]))
+                    Logger.log(self.get_tag(), str(e))
+
+                elapsed = freq_cb_tictoc.toc()
+                if elapsed > self.extra["freq-cb-max-elapsed"]:
+                    self.extra["freq-cb-max-elapsed"] = elapsed
+
+            time.sleep(0.04)
+            tcount += 1
+            tcount %= 10
+
+        self.enable_detect_dump(enable=False)

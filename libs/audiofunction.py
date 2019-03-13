@@ -143,9 +143,9 @@ class ToneDetector(object):
         TONE_MISSING = "tone missing"
 
     @staticmethod
-    def start_listen(target_freq, cb, serialno=None, dclass=None):
+    def start_listen(target_freq, cb, serialno=None, dclass=None, params={}):
         if serialno and dclass:
-            ToneDetector.WORK_THREAD = dclass(serialno=serialno, target_freq=target_freq, callback=cb)
+            ToneDetector.WORK_THREAD = dclass(serialno=serialno, target_freq=target_freq, callback=cb, **params)
         else:
             ToneDetector.WORK_THREAD = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
         ToneDetector.WORK_THREAD.start()
@@ -157,7 +157,7 @@ class ToneDetector(object):
 
     @staticmethod
     def set_target_frequency(target_freq):
-        ToneDetector.WORK_THREAD.target_freq = target_freq
+        ToneDetector.WORK_THREAD.set_target_frequency(target_freq)
 
 class DetectionStateListener(object):
     class Event(object):

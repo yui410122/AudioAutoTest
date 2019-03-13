@@ -100,13 +100,19 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         del self.extra["dump"][:]
         self.extra["dump-lock"].release()
 
+    def get_tag(self):
+        return "AATAppToneDetectorThread"
+
+    def set_target_frequency(self, target_freq):
+        self.target_freq = target_freq
+
     def dump(self):
         self.extra["dump-lock"].acquire()
-        Logger.log("AATAppToneDetectorThread", "dump called")
-        Logger.log("AATAppToneDetectorThread", "----------------------------------------------")
-        map(lambda msg: Logger.log("AATAppToneDetectorThread::dump", "\"{}\"".format(msg)), self.extra["dump"])
+        Logger.log(self.get_tag(), "dump called")
+        Logger.log(self.get_tag(), "----------------------------------------------")
+        map(lambda msg: Logger.log("{}::dump".format(self.get_tag()), "\"{}\"".format(msg)), self.extra["dump"])
         del self.extra["dump"][:]
-        Logger.log("AATAppToneDetectorThread", "----------------------------------------------")
+        Logger.log(self.get_tag(), "----------------------------------------------")
         self.extra["dump-lock"].release()
 
     def join(self, timeout=None):
@@ -145,7 +151,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
                     shared_vars["start_time"] = time_str
                 if self.event_counter == thresh:
                     if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_DETECTED:
-                        Logger.log("AATAppToneDetectorThread", "send_cb({}, TONE_DETECTED)".format(shared_vars["start_time"]))
+                        Logger.log(self.get_tag(), "send_cb({}, TONE_DETECTED)".format(shared_vars["start_time"]))
                         self.cb((shared_vars["start_time"], ToneDetector.Event.TONE_DETECTED))
                         shared_vars["last_event"] = ToneDetector.Event.TONE_DETECTED
 
@@ -155,7 +161,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
                     self.push_to_dump("the tone is not detected and the event_counter is over the threshold")
                     self.push_to_dump("last_event: \"{}\"".format(shared_vars["last_event"]))
                 if not shared_vars["last_event"] or shared_vars["last_event"] != ToneDetector.Event.TONE_MISSING:
-                    Logger.log("AATAppToneDetectorThread", "send_cb({}, TONE_MISSING)".format(time_str))
+                    Logger.log(self.get_tag(), "send_cb({}, TONE_MISSING)".format(time_str))
                     self.cb((time_str, ToneDetector.Event.TONE_MISSING))
                     shared_vars["last_event"] = ToneDetector.Event.TONE_MISSING
                 self.event_counter = 0
@@ -198,7 +204,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
                     self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(msg, elapsed))
                     freq_cb(msg)
                 except Exception as e:
-                    Logger.log("ToneDetectorThread", "crashed in freq_cb('{}')".format(msg))
+                    Logger.log(self.get_tag(), "crashed in freq_cb('{}')".format(msg))
                     print(e)
 
                 elapsed = freq_cb_tictoc.toc()

@@ -13,6 +13,8 @@ from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListen
 from libs.logger import Logger
 from libs.aatapp import AATApp
 from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
+# from libs.audioworker import AudioWorkerApp as AATApp
+# from libs.audioworker import AudioWorkerToneDetectorThread as ToneDetectorForDeviceThread
 from libs.trials import Trial, TrialHelper
 
 RELAUNCH = True
@@ -226,9 +228,14 @@ def playback_task_run(device, num_iter=1, postfix=None):
             time.sleep(1)
             stm.reset()
             log("reset DetectionStateChangeListener")
-            func(device, filename=files[name])
+            try:
+                func(device, filename=files[name])
+            except:
+                func(device, freq=float(files[name].split("Hz")[0]))
+                if name == "offload":
+                    time.sleep(5)
 
-            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=15) < 0:
                 log("the tone was not detected, abort the iteration this time...")
                 AATApp.playback_stop(device)
                 trial.invalidate(errormsg="early return, possible reason: rx no sound")
@@ -294,7 +301,22 @@ def record_task_run(device, serialno, num_iter=1):
 
     out_freq = OUT_FREQ
     log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, out_freq))
-    ToneDetector.start_listen(serialno=serialno, target_freq=out_freq, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
+    listen_params = {
+        "serialno": serialno,
+        "target_freq": out_freq,
+        "cb": lambda event: stm.tone_detected_event_cb(event),
+        "dclass": ToneDetectorForDeviceThread
+    }
+    try:
+        ToneDetector.start_listen(**listen_params)
+    except:
+        listen_params["params"] = {
+            "detector_reg_func": AATApp.record_detector_register,
+            "detector_setparams_func": AATApp.record_detector_set_params,
+            "info_func": AATApp.record_info
+        }
+        ToneDetector.start_listen(**listen_params)
+
     log("AudioFunction.play_sound(out_freq={})".format(out_freq))
 
     has_triggered_bugreport = False
@@ -311,8 +333,9 @@ def record_task_run(device, serialno, num_iter=1):
         AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
 
         ToneDetector.WORK_THREAD.clear_dump()
+        stm.clear()
         stm.reset()
-        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
             log("the tone was not detected, abort the iteration this time...")
             log("ToneDetectorForDeviceThread.adb-read-prop-max-elapsed: {} ms".format( \
                 ToneDetector.WORK_THREAD.extra["adb-read-prop-max-elapsed"]))
@@ -324,6 +347,7 @@ def record_task_run(device, serialno, num_iter=1):
             now = "_".join("{}".format(datetime.datetime.now()).split())
             log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
             AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
+            ToneDetector.WORK_THREAD.dump()
             continue
 
         log("trigger_{}()".format(TEST_CONFIG))
@@ -332,32 +356,35 @@ def record_task_run(device, serialno, num_iter=1):
         else:
             trigger_asr(serialno)
 
-        log("waiting for incative....")
-        stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=5)
-        Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], serialno=serialno)
+        log("waiting for inactive....")
+        if stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=10) >= 0:
+            Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], serialno=serialno)
 
-        log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
-        elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
-        if elapsed < 0:
-            log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
-            log("Waiting for the tone being detected")
-            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
-                log("The tone is not detected")
-                if not has_triggered_bugreport:
-                    AudioFunction.stop_audio()
-                    log("get bugreport...")
-                    p = trigger_bugreport(device)
-                    trial.put_extra("bugreport", p)
-                    has_triggered_bugreport = True
-                now = "_".join("{}".format(datetime.datetime.now()).split())
-                log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
-                AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
+            log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
+            elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
+            if elapsed < 0:
+                log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
+                log("Waiting for the tone being detected")
+                if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
+                    log("The tone is not detected")
+                    if not has_triggered_bugreport:
+                        AudioFunction.stop_audio()
+                        log("get bugreport...")
+                        p = trigger_bugreport(device)
+                        trial.put_extra("bugreport", p)
+                        has_triggered_bugreport = True
+                    now = "_".join("{}".format(datetime.datetime.now()).split())
+                    log("dump the recorded pcm to \"sdcard/PyAAT/dump_{}\"".format(now))
+                    AATApp.record_dump(device, "sdcard/PyAAT/dump_{}".format(now))
 
-                log("start dumping the process during capturing the frequency...")
-                ToneDetector.WORK_THREAD.dump()
-            else:
-                log("The tone is detected, please also check the device log for confirming if it is a false alarm")
-                trial.put_extra(name="msg", value="possible false alarm")
+                    log("start dumping the process during capturing the frequency...")
+                    ToneDetector.WORK_THREAD.dump()
+                else:
+                    log("The tone is detected, please also check the device log for confirming if it is a false alarm")
+                    trial.put_extra(name="msg", value="possible false alarm")
+        else:
+            log("No inactive event")
+            elapsed = 0
             
         log("elapsed: {} ms".format(elapsed))
         AudioFunction.stop_audio()
@@ -370,22 +397,25 @@ def record_task_run(device, serialno, num_iter=1):
         trial.put_extra(name="elapsed", value=elapsed)
         trials.append(trial)
 
+        elapsed = stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=10)
+
         import random
         out_freq = OUT_FREQ * 2**(random.randint(0, 12)/12.)
         ToneDetector.set_target_frequency(target_freq=out_freq)
         log("ToneDetector.set_target_frequency(serialno={}, target_freq={})".format(serialno, out_freq))
 
-        if elapsed > 0:
+        if elapsed >= 0:
             time.sleep(30 - elapsed/1000.)
 
     log("-------- record_task done --------")
     log("AudioFunction.stop_audio()")
 
+    log("ToneDetector.stop_listen()")
+    ToneDetector.stop_listen()
+
     log("dev_record_stop")
     AATApp.record_stop(device)
     time.sleep(5)
-    log("ToneDetector.stop_listen()")
-    ToneDetector.stop_listen()
 
     log("record_task_run--")
     relaunch_app(device)
@@ -421,7 +451,7 @@ def voip_task_run(device, serialno, num_iter=1):
         time.sleep(1)
         stm.reset()
 
-        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
             log("the tone was not detected, abort the iteration this time...")
             trial.invalidate(errormsg="early return, possible reason: rx no sound")
             trials.append(trial)
@@ -441,7 +471,7 @@ def voip_task_run(device, serialno, num_iter=1):
         if elapsed < 0:
             log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
             log("Waiting for the tone being detected")
-            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
                 log("The tone is not detected")
                 if not has_triggered_bugreport:
                     log("get bugreport...")
@@ -490,7 +520,7 @@ def voip_task_run(device, serialno, num_iter=1):
         AudioFunction.play_sound(out_freq=out_freq)
 
         stm.reset()
-        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+        if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
             log("the tone was not detected, abort the iteration this time...")
             trial.invalidate(errormsg="early return, possible reason: tx no sound")
             trials.append(trial)
@@ -503,8 +533,8 @@ def voip_task_run(device, serialno, num_iter=1):
         else:
             trigger_asr(serialno)
 
-        log("waiting for incative....")
-        stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=5)
+        log("waiting for inactive....")
+        stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=10)
         Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], serialno=serialno)
 
         log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
@@ -514,7 +544,7 @@ def voip_task_run(device, serialno, num_iter=1):
         if elapsed < 0:
             log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
             log("Waiting for the tone being detected")
-            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=10) < 0:
                 log("The tone is not detected")
                 if not has_triggered_bugreport:
                     AudioFunction.stop_audio()
