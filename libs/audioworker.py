@@ -172,6 +172,23 @@ class AudioWorkerApp(object):
         AudioWorkerApp.send_intent(device, serialno, name, configs)
 
     @staticmethod
+    def record_detector_unregister(device=None, serialno=None, chandle=None):
+        if not chandle:
+            return
+
+        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.detect.unregister"
+        AudioWorkerApp.send_intent(device, serialno, name, {"class-handle": chandle})
+
+    @staticmethod
+    def record_detector_clear(device=None, serialno=None):
+        info = AudioWorkerApp.record_info(device, serialno)
+        if not info:
+            return
+
+        for chandle in info[1].keys():
+            AudioWorkerApp.record_detector_unregister(device, serialno, chandle)
+
+    @staticmethod
     def record_detector_set_params(device=None, serialno=None, chandle=None, params={}):
         if not chandle:
             return
@@ -271,11 +288,12 @@ from aatapp import AATAppToneDetectorThread
 from logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
-    def __init__(self, serialno, target_freq, callback, detector_reg_func, detector_setparams_func, info_func):
+    def __init__(self, serialno, target_freq, callback, detector_reg_func, detector_unreg_func, detector_setparams_func, info_func):
         super(AudioWorkerToneDetectorThread, self).__init__(serialno=serialno, target_freq=target_freq, callback=callback)
         self.serialno = serialno
         self.chandle = None
         self.detector_reg_func = detector_reg_func
+        self.detector_unreg_func = detector_unreg_func
         self.detector_setparams_func = detector_setparams_func
         self.info_func = info_func
         self.detector_reg_func(serialno=serialno, dclass="ToneDetector", params={"target-freq": [target_freq]})

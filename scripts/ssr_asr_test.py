@@ -312,6 +312,7 @@ def record_task_run(device, serialno, num_iter=1):
     except:
         listen_params["params"] = {
             "detector_reg_func": AATApp.record_detector_register,
+            "detector_unreg_func": AATApp.record_detector_unregister,
             "detector_setparams_func": AATApp.record_detector_set_params,
             "info_func": AATApp.record_info
         }
