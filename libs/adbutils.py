@@ -38,6 +38,14 @@ class Adb(object):
         return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
 
     @staticmethod
+    def get_devices(tolog=True):
+        out, _ = Adb.execute(["devices"], tolog=tolog)
+        devices = map(lambda x: x.strip(), out.splitlines())
+        del devices[0]
+        devices = [x.split()[0] for x in devices if len(x) > 0 and x.split()[1] == "device"]
+        return devices
+
+    @staticmethod
     def device_fingerprint(serialno=None, tolog=True):
         return Adb.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
 

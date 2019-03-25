@@ -20,7 +20,7 @@ class LogcatOutputThread(threading.Thread):
         self.listeners = {}
         self.stoprequest = threading.Event()
         self.proc = None
-        self.buffername = None if buffername == "device" else buffername
+        self.buffername = None if buffername == "system" else buffername
 
     def register_event(self, logcat_event):
         self.listeners[logcat_event.pattern] = logcat_event
@@ -94,7 +94,7 @@ class LogcatListener(object):
         return out.splitlines()[1].split("\t")[0] if len(out.splitlines()) > 1 else None
 
     @staticmethod
-    def init(serialno=None, buffername="device", flush=False):
+    def init(serialno=None, buffername="system", flush=False):
         if not serialno:
             serialno = LogcatListener._find_first_device_serialno()
         if not serialno:
@@ -115,12 +115,12 @@ class LogcatListener(object):
     @staticmethod
     def finalize():
         for threadname, th in LogcatListener.WORK_THREADS.items():
-            th.join()
+            th.join(timeout=10)
             if threadname in LogcatListener.WORK_THREADS.keys():
                 del LogcatListener.WORK_THREADS[threadname]
 
     @staticmethod
-    def register_event(logcat_event, serialno=None, buffername="device"):
+    def register_event(logcat_event, serialno=None, buffername="system"):
         if not serialno:
             serialno = LogcatListener._find_first_device_serialno()
         if not serialno:
@@ -134,7 +134,7 @@ class LogcatListener(object):
             LogcatListener.WORK_THREADS[threadname].register_event(logcat_event=logcat_event)
 
     @staticmethod
-    def unregister_event(logcat_event, serialno=None, buffername="device"):
+    def unregister_event(logcat_event, serialno=None, buffername="system"):
         if not serialno:
             serialno = LogcatListener._find_first_device_serialno()
         if not serialno:

@@ -59,8 +59,7 @@ class Trial(object):
             "task": taskname,
             "timestamp": TimeUtils.now_str(),
             "status": "valid",
-            "error-msg": None,
-            "extra": None
+            "error-msg": None
         }
         self.pass_check = pass_check
 
@@ -70,7 +69,7 @@ class Trial(object):
         return self.pass_check(self)
 
     def put_extra(self, name, value):
-        if self.ds["extra"] == None:
+        if not "extra" in self.ds.keys():
             self.ds["extra"] = {}
 
         self.ds["extra"][name] = value

@@ -151,7 +151,7 @@ class AudioWorkerApp(object):
             return
 
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.dump"
-        AudioWorkerApp.send_intent(device, serialno, {"filename": path})
+        AudioWorkerApp.send_intent(device, serialno, name, {"filename": path})
 
     @staticmethod
     def record_detector_register(device=None, serialno=None, dclass=None, params={}):
@@ -410,7 +410,6 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         freq_cb_tictoc = TicToc()
         adb_tictoc = TicToc()
 
-        tcount = 0
         freq_cb_tictoc.tic()
         while not self.stoprequest.isSet():
             if not self.chandle:
@@ -441,7 +440,5 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                     self.extra["freq-cb-max-elapsed"] = elapsed
 
             time.sleep(0.04)
-            tcount += 1
-            tcount %= 10
 
         self.enable_detect_dump(enable=False)
