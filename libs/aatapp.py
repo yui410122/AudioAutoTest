@@ -104,6 +104,9 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         return "AATAppToneDetectorThread"
 
     def set_target_frequency(self, target_freq):
+        if type(target_freq) is list:
+            target_freq = target_freq[0]
+
         self.target_freq = target_freq
 
     def dump(self):
@@ -116,7 +119,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         self.extra["dump-lock"].release()
 
     def join(self, timeout=None):
-        super(AATAppToneDetectorThread, self).join(timeout)
+        super(AATAppToneDetectorThread, self).join(timeout=timeout)
 
     def run(self):
         shared_vars = {
@@ -172,7 +175,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
         #     serialno=self.serialno)
 
-        from libs.tictoc import TicToc
+        from libs.timeutils import TicToc, TimeUtils
         freq_cb_tictoc = TicToc()
         adb_tictoc = TicToc()
 
@@ -196,9 +199,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
             if "," in msg:
                 msg = msg.replace("\n", "")
                 import datetime
-                t = datetime.datetime.now()
-                msg = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:06d} {}".format( \
-                    t.month, t.day, t.hour, t.minute, t.second, t.microsecond, msg)
+                msg = "{} {}".format(TimeUtils.now_str(), msg)
 
                 try:
                     self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(msg, elapsed))

@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 import datetime
+import time
 from libs.adbutils import Adb
 
 class AudioWorkerApp(object):
@@ -14,19 +15,20 @@ class AudioWorkerApp(object):
     DATA_FOLDER = "/storage/emulated/0/Google-AudioWorker-data"
 
     @staticmethod
-    def device_shell(device=None, serialno=None, cmd=None):
+    def device_shell(device=None, serialno=None, cmd=None, tolog=True):
         if not cmd:
             return
 
         if device:
             return device.shell(cmd)
         else:
-            return Adb.execute(["shell", cmd], serialno=serialno)
+            return Adb.execute(["shell", cmd], serialno=serialno, tolog=tolog)
 
     @staticmethod
     def relaunch_app(device=None, serialno=None):
         AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am force-stop {}".format(AudioWorkerApp.PACKAGE))
-        AudioWorkerApp.launch_app(device)
+        time.sleep(2)
+        AudioWorkerApp.launch_app(device, serialno)
 
     @staticmethod
     def launch_app(device=None, serialno=None):
@@ -34,7 +36,7 @@ class AudioWorkerApp(object):
         AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am start -n {}".format(component))
 
     @staticmethod
-    def send_intent(device, serialno, name, configs={}):
+    def send_intent(device, serialno, name, configs={}, tolog=True):
         cmd_arr = [AudioWorkerApp.INTENT_PREFIX, name]
         for key, value in configs.items():
             if type(value) is float:
@@ -45,10 +47,10 @@ class AudioWorkerApp(object):
                 cmd_arr += ["--es", key]
             cmd_arr.append(str(value))
 
-        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr))
+        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
 
     @staticmethod
-    def playback_nonoffload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
+    def playback_nonoffload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "non-offload",
@@ -57,7 +59,8 @@ class AudioWorkerApp(object):
             "sampling-freq": fs,
             "num-channels": nch,
             "amplitude": amp,
-            "pcm-bit-width": bit_depth
+            "pcm-bit-width": bit_depth,
+            "low-latency-mode": low_latency_mode
         }
         AudioWorkerApp.send_intent(device, serialno, name, configs)
 
@@ -76,11 +79,15 @@ class AudioWorkerApp(object):
         AudioWorkerApp.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def playback_info(device=None, serialno=None):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.info"
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": "info.txt"})
-        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}/PlaybackController/info.txt".format(AudioWorkerApp.DATA_FOLDER))
+    def _common_info(device=None, serialno=None, ctype=None, controller=None):
+        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
+        filename = "{}-info.txt".format(datetime.datetime.now())
+        filename = "-".join(filename.split())
+        filepath = "{}/{}/{}".format(AudioWorkerApp.DATA_FOLDER, controller, filename)
+        AudioWorkerApp.send_intent(device, serialno, name, {"filename": filename}, tolog=False)
+        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=False)
         out = out.splitlines()
+        AudioWorkerApp.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=False)
         if len(out) <= 1:
             return None
 
@@ -93,6 +100,10 @@ class AudioWorkerApp(object):
             return None
 
         return json.loads("".join(out[1:]))
+
+    @staticmethod
+    def playback_info(device=None, serialno=None):
+        return AudioWorkerApp._common_info(device, serialno, "playback", "PlaybackController")
 
     @staticmethod
     def playback_stop(device=None, serialno=None):
@@ -108,22 +119,10 @@ class AudioWorkerApp(object):
 
     @staticmethod
     def record_info(device=None, serialno=None):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.info"
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": "info.txt"})
-        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}/RecordController/info.txt".format(AudioWorkerApp.DATA_FOLDER))
-        out = out.splitlines()
-        if len(out) <= 1:
+        info = AudioWorkerApp._common_info(device, serialno, "record", "RecordController")
+        if not info:
             return None
 
-        try:
-            info_timestamp = float(out[0].strip().split("::")[1]) / 1000.
-            info_t = datetime.datetime.fromtimestamp(info_timestamp)
-            if (datetime.datetime.now() - info_t).total_seconds() > 1:
-                return None
-        except:
-            return None
-
-        info = json.loads("".join(out[1:]))
         if len(info) > 1:
             for key, value in info[1].items():
                 info[1][key] = json.loads(value)
@@ -207,22 +206,7 @@ class AudioWorkerApp(object):
 
     @staticmethod
     def voip_info(device=None, serialno=None):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.info"
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": "info.txt"})
-        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}/VoIPController/info.txt".format(AudioWorkerApp.DATA_FOLDER))
-        out = out.splitlines()
-        if len(out) <= 1:
-            return None
-
-        try:
-            info_timestamp = float(out[0].strip().split("::")[1]) / 1000.
-            info_t = datetime.datetime.fromtimestamp(info_timestamp)
-            if (datetime.datetime.now() - info_t).total_seconds() > 1:
-                return None
-        except:
-            return None
-
-        return json.loads("".join(out[1:]))
+        return AudioWorkerApp._common_info(device, serialno, "voip", "VoIPController")
 
     @staticmethod
     def voip_start(device=None, serialno=None, rxfreq=440., rxamp=0.6,
@@ -282,7 +266,7 @@ class AudioWorkerApp(object):
 
 import threading
 import time
-from tictoc import TicToc
+from timeutils import TicToc, TimeUtils
 from audiofunction import ToneDetectorThread, ToneDetector
 from aatapp import AATAppToneDetectorThread
 from logger import Logger
@@ -343,7 +327,7 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                     chandle = key
                     break
             if chandle:
-                Logger.log("{}::get_info".format(self.get_tag()), "found detector handle: {}".format(chandle))
+                Logger.log("{}::get_info".format(self.get_tag()), "found detector handle: {} for target {} Hz".format(chandle, self.target_freq))
 
         if not chandle:
             Logger.log("{}::get_info".format(self.get_tag()), "no detector handle!")
@@ -410,15 +394,15 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                 self.shared_vars["state_keep_ms"] = 0
 
             t = self.shared_vars["start_time"]
-            t_str = "{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:06d}".format(
-                t.month, t.day, t.hour, t.minute, t.second, t.microsecond)
+            t_str = TimeUtils.str_from_time(t)
 
             self.shared_vars["state_keep_ms"] += self.shared_vars["tictoc"].toc()
             if self.shared_vars["state_keep_ms"] > 200:
                 event = ToneDetector.Event.TONE_DETECTED if active else ToneDetector.Event.TONE_MISSING
                 if self.shared_vars["last_event"] != event:
                     self.shared_vars["last_event"] = event
-                    Logger.log(self.get_tag(), "send_cb({}, {})".format(t_str, "TONE_DETECTED" if active else "TONE_MISSING"))
+                    Logger.log(self.get_tag(),
+                        "send_cb({}, {}) on {} Hz".format(t_str, "TONE_DETECTED" if active else "TONE_MISSING", self.target_freq))
                     self.cb((t_str, event))
 
         self.enable_detect_dump(enable=True)

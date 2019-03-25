@@ -7,6 +7,7 @@ import datetime
 
 from libs.adbutils import Adb
 from libs.logger import Logger
+from libs.timeutils import TimeUtils
 
 # Initialization of used variables
 class CommandHandler(object):
@@ -104,7 +105,7 @@ class ToneDetectorForServerThread(ToneDetectorThread):
         def freq_cb(detected_tones):
             if len(detected_tones) == 0:
                 return
-            time_str = datetime.datetime.strftime(datetime.datetime.now(), ToneDetector.TIME_STR_FORMAT)
+            time_str = TimeUtils.now_str()
             freq, amp = detected_tones[0]
 
             thresh = 10 if self.target_freq else 1
@@ -136,8 +137,6 @@ class ToneDetectorForServerThread(ToneDetectorThread):
 class ToneDetector(object):
     WORK_THREAD = None
 
-    TIME_STR_FORMAT = "%m-%d %H:%M:%S.%f"
-
     class Event(object):
         TONE_DETECTED = "tone detected"
         TONE_MISSING = "tone missing"
@@ -166,12 +165,15 @@ class DetectionStateListener(object):
         RISING_EDGE = "rising"
         FALLING_EDGE = "falling"
 
-    def __init__(self):
+    def __init__(self, name=None):
+        self.name = name
         self.daemon = True
         self.stoprequest = threading.Event()
         self.event_q = queue.Queue()
         self.current_event = None
-        Logger.init()
+
+    def get_tag(self):
+        return "DetectionStateListener{}".format("::{}".format(self.name) if self.name else "")
 
     def clear(self):
         with self.event_q.mutex:
@@ -194,11 +196,11 @@ class DetectionStateListener(object):
         self.clear()
 
         if active_or_inactive:
-            Logger.log("DetectionStateListener", "reset and resend the event ({}, 0)".format(active_or_inactive))
+            Logger.log(self.get_tag(), "reset and resend the event ({}, 0)".format(active_or_inactive))
             self.event_q.put((active_or_inactive, 0))
 
     def tone_detected_event_cb(self, event):
-        Logger.log("DetectionStateListener", "tone_detected_event_cb: {}".format(event))
+        Logger.log(self.get_tag(), "tone_detected_event_cb: {}".format(event))
         self._handle_event(event)
 
     def _handle_event(self, event):
@@ -213,8 +215,8 @@ class DetectionStateListener(object):
                             if event[1] == ToneDetector.Event.TONE_DETECTED else \
                                 DetectionStateListener.Event.FALLING_EDGE
 
-            t2 = datetime.datetime.strptime(event[0], ToneDetector.TIME_STR_FORMAT)
-            t1 = datetime.datetime.strptime(self.current_event[0], ToneDetector.TIME_STR_FORMAT)
+            t2 = TimeUtils.time_from_str(event[0])
+            t1 = TimeUtils.time_from_str(self.current_event[0])
             t_diff = t2 - t1
             self.event_q.put((rising_or_falling, t_diff.total_seconds()*1000.0))
 
@@ -228,7 +230,7 @@ class DetectionStateListener(object):
                 return -1
             try:
                 ev = self.event_q.get(timeout=0.1)
-                Logger.log("DetectionStateListener", "get event: {}".format(ev))
+                Logger.log(self.get_tag(), "get event: {}".format(ev))
                 if ev[0] == event:
                     return ev[1]
             except queue.Empty:
@@ -239,6 +241,6 @@ class DetectionStateListener(object):
                         if current_event[1] == ToneDetector.Event.TONE_DETECTED else \
                              DetectionStateListener.Event.INACTIVE
                     if active_or_inactive == event:
-                        Logger.log("DetectionStateListener", "the current state '{}' fits the waited event".format(event))
+                        Logger.log(self.get_tag(), "the current state '{}' fits the waited event".format(event))
                         return 0
         return -1

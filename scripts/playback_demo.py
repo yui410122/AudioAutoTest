@@ -18,7 +18,7 @@ from libs.logger import Logger
 from libs.audiofunction import AudioFunction
 from libs.audiothread import RawRecordCommand, AudioConfig
 from libs.audiosignalframelogger import AudioSignalFrameLogger
-from libs.tictoc import TicToc
+from libs.timeutils import TicToc
 from libs.signalanalyzer import sort_values
 
 TAG = "playback_demo.py"

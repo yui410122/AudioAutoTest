@@ -65,7 +65,7 @@ def trigger_bugreport(serialno):
 
 def try_to_reboot_device(serialno, timeout):
     import threading
-    from libs.tictoc import TicToc
+    from libs.timeutils import TicToc
     class runner(threading.Thread):
         def __init__(self):
             super(runner, self).__init__()

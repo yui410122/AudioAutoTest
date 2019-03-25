@@ -1,5 +1,6 @@
 import datetime
 import json
+from timeutils import TimeUtils
 
 class TrialHelper(object):
     @staticmethod
@@ -56,7 +57,7 @@ class Trial(object):
     def __init__(self, taskname=None, pass_check=None):
         self.ds = {
             "task": taskname,
-            "timestamp": str(datetime.datetime.now()),
+            "timestamp": TimeUtils.now_str(),
             "status": "valid",
             "error-msg": None,
             "extra": None
