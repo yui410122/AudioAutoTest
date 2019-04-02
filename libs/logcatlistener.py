@@ -84,7 +84,7 @@ class LogcatListener(object):
         while len(LogcatListener.WORK_THREADS.keys()) > 0:
             for serialno, th in LogcatListener.WORK_THREADS.items():
                 if th.poll() != None:
-                    th.join()
+                    th.join(timeout=10)
                     if serialno in LogcatListener.WORK_THREADS.keys():
                         del LogcatListener.WORK_THREADS[serialno]
 

@@ -94,8 +94,8 @@ class AudioWorkerApp(object):
         try:
             info_timestamp = float(out[0].strip().split("::")[1]) / 1000.
             info_t = datetime.datetime.fromtimestamp(info_timestamp)
-            if (datetime.datetime.now() - info_t).total_seconds() > 1:
-                return None
+            # if (datetime.datetime.now() - info_t).total_seconds() > 1:
+            #     return None
         except:
             return None
 
