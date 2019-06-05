@@ -8,18 +8,21 @@ import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
 from libs import ROOT_DIR, SEP, STDNUL
+from libs.argutils import AATArgParseUtils
 from libs.adbutils import Adb
 from libs.audiofunction import AudioFunction, ToneDetector, DetectionStateListener
 from libs.logger import Logger
-from libs.aatapp import AATApp
-from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
-# from libs.audioworker import AudioWorkerApp as AATApp
-# from libs.audioworker import AudioWorkerToneDetectorThread as ToneDetectorForDeviceThread
+# from libs.aatapp import AATApp
+# from libs.aatapp import AATAppToneDetectorThread as ToneDetectorForDeviceThread
+from libs.audioworker import AudioWorkerApp as AATApp
+from libs.audioworker import AudioWorkerToneDetectorThread as ToneDetectorForDeviceThread
 from libs.trials import Trial, TrialHelper
 
 RELAUNCH = True
-TEST_CONFIG = "asr" # "ssr"|"asr"
-TAG = "{}_test.py".format(TEST_CONFIG)
+GLOBAL = {
+    "tag": "{}_test.py",
+    "test_config": "asr" # asr|ssr
+}
 
 DEVICE_MUSIC_DIR = "sdcard/Music/"
 OUT_FREQ = 440
@@ -40,7 +43,7 @@ def push_files(serialno):
             raise ValueError("Cannot find the file \"{}\", please place it under the project tree.".format(file_to_pushed))
 
 def log(msg):
-    Logger.log(TAG, msg)
+    Logger.log(GLOBAL["tag"], msg)
 
 def trigger_ssr(serialno):
     Adb.execute(["shell", "crash_adsp"], serialno=serialno)
@@ -105,19 +108,21 @@ def try_to_reboot_device(serialno, timeout):
     return False
 
 
-def run(num_iter=1, serialno=None):
+def run(test_type, num_iter=1, serialno=None):
+    GLOBAL["test_config"] = test_type
+    GLOBAL["tag"] = GLOBAL["tag"].format(GLOBAL["test_config"])
     AudioFunction.init()
-    Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT, prefix="{}-{}".format(TEST_CONFIG, serialno))
     Adb.init()
 
-    os.system("mkdir -p {}{}{}_report > {}".format(ROOT_DIR, SEP, TEST_CONFIG, STDNUL))
-    os.system("mkdir -p {}{}{}_report-bugreport > {}".format(ROOT_DIR, SEP, TEST_CONFIG, STDNUL))
+    os.system("mkdir -p {}{}{}_report > {}".format(ROOT_DIR, SEP, GLOBAL["test_config"], STDNUL))
+    os.system("mkdir -p {}{}{}_report-bugreport > {}".format(ROOT_DIR, SEP, GLOBAL["test_config"], STDNUL))
     t = datetime.datetime.now()
     postfix = "{}{:02d}{:02d}_{:02d}{:02d}{:02d}".format(t.year, t.month, t.day, t.hour, t.minute, t.second)
     filename = "report_{}.json".format(postfix)
-    os.system("mkdir -p {}{}{}_report-bugreport/{} > {}".format(ROOT_DIR, SEP, TEST_CONFIG, postfix, STDNUL))
+    os.system("mkdir -p {}{}{}_report-bugreport/{} > {}".format(ROOT_DIR, SEP, GLOBAL["test_config"], postfix, STDNUL))
 
     device, serialno = ViewClient.connectToDeviceOrExit(serialno=serialno)
+    Logger.init(Logger.Mode.BOTH_FILE_AND_STDOUT, prefix="{}-{}".format(GLOBAL["test_config"], serialno))
     push_files(serialno)
 
     Adb.execute(["shell", "svc", "power", "stayon", "true"], serialno=serialno)
@@ -144,7 +149,7 @@ def run(num_iter=1, serialno=None):
     temp = num_iter
     while num_iter > 0:
         log("-------- batch_run #{} --------".format(batch_count))
-        AATApp.print_log(device, severity="i", tag=TAG, log="-------- batch_run #{} --------".format(batch_count))
+        AATApp.print_log(device, severity="i", tag=GLOBAL["tag"], log="-------- batch_run #{} --------".format(batch_count))
         trials_batch = []
         # trials_batch += playback_task_run(device, num_iter=min([num_iter, BATCH_SIZE]))
         # trials_batch += record_task_run(device, serialno, num_iter=min([num_iter, BATCH_SIZE]))
@@ -159,7 +164,7 @@ def run(num_iter=1, serialno=None):
 
         map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
         trials += trials_batch
-        with open("{}{}{}_report{}{}".format(ROOT_DIR, SEP, TEST_CONFIG, SEP, filename), "w") as f:
+        with open("{}{}{}_report{}{}".format(ROOT_DIR, SEP, GLOBAL["test_config"], SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
 
         for taskname, tasktrials in TrialHelper.categorize_in(trials, lambda t: t.ds["task"]).items():
@@ -177,14 +182,14 @@ def run(num_iter=1, serialno=None):
             log("Try to reboot the device")
             if not try_to_reboot_device(serialno, timeout=300):
                 log("reboot failed!")
-                os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, TEST_CONFIG, SEP, postfix, SEP))
-                os.system("mv {}-*.png {}{}{}_report-bugreport{}{}{}".format(postfix, ROOT_DIR, SEP, TEST_CONFIG, SEP, postfix, SEP))
+                os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, GLOBAL["test_config"], SEP, postfix, SEP))
+                os.system("mv {}-*.png {}{}{}_report-bugreport{}{}{}".format(postfix, ROOT_DIR, SEP, GLOBAL["test_config"], SEP, postfix, SEP))
                 break
             else:
                 time.sleep(5)
                 device, serialno = ViewClient.connectToDeviceOrExit(serialno=serialno)
 
-        os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, TEST_CONFIG, SEP, postfix, SEP))
+        os.system("mv bugreport*.zip {}{}{}_report-bugreport{}{}{}".format(ROOT_DIR, SEP, GLOBAL["test_config"], SEP, postfix, SEP))
 
         num_iter -= BATCH_SIZE
         batch_count += 1
@@ -222,7 +227,7 @@ def playback_task_run(device, num_iter=1, postfix=None):
             trial = Trial(taskname="playback_{}".format(name), pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
             trial.put_extra(name="iter_id", value=i+1)
 
-            AATApp.print_log(device, severity="i", tag=TAG, log="playback_{}_task #{}".format(name, i+1))
+            AATApp.print_log(device, severity="i", tag=GLOBAL["tag"], log="playback_{}_task #{}".format(name, i+1))
 
             log("dev_playback_{}_start".format(name))
             time.sleep(1)
@@ -243,13 +248,13 @@ def playback_task_run(device, num_iter=1, postfix=None):
                 continue
             time.sleep(1)
 
-            log("trigger_{}()".format(TEST_CONFIG))
-            if TEST_CONFIG == "ssr":
+            log("trigger_{}()".format(GLOBAL["test_config"]))
+            if GLOBAL["test_config"] == "ssr":
                 trigger_ssr(serialno)
             else:
                 trigger_asr(serialno)
 
-            log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
+            log("Waiting for {} recovery".format("SSR" if GLOBAL["test_config"] == "ssr" else "ASR"))
             elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
             log("elapsed: {} ms".format(elapsed))
             if elapsed < 0:
@@ -258,7 +263,7 @@ def playback_task_run(device, num_iter=1, postfix=None):
                 if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=5) < 0:
                     log("The tone is not detected")
                     screenshot_path = "{}-{}.png".format(postfix, int(time.time()));
-                    os.system("python {}/tools-for-dev/dump-screen.py {}/{}_report-bugreport/{}/{}".format(ROOT_DIR, ROOT_DIR, TEST_CONFIG, postfix, screenshot_path))
+                    os.system("python {}/tools-for-dev/dump-screen.py {}/{}_report-bugreport/{}/{}".format(ROOT_DIR, ROOT_DIR, GLOBAL["test_config"], postfix, screenshot_path))
                     trial.put_extra("screenshot", screenshot_path)
                     if not has_triggered_bugreport:
                         AATApp.playback_stop(device)
@@ -331,7 +336,7 @@ def record_task_run(device, serialno, num_iter=1):
         trial = Trial(taskname="record", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
-        AATApp.print_log(device, severity="i", tag=TAG, log="record_task #{}".format(i+1))
+        AATApp.print_log(device, severity="i", tag=GLOBAL["tag"], log="record_task #{}".format(i+1))
 
         ToneDetector.WORK_THREAD.clear_dump()
         stm.clear()
@@ -351,8 +356,8 @@ def record_task_run(device, serialno, num_iter=1):
             ToneDetector.WORK_THREAD.dump()
             continue
 
-        log("trigger_{}()".format(TEST_CONFIG))
-        if TEST_CONFIG == "ssr":
+        log("trigger_{}()".format(GLOBAL["test_config"]))
+        if GLOBAL["test_config"] == "ssr":
             trigger_ssr(serialno)
         else:
             trigger_asr(serialno)
@@ -361,7 +366,7 @@ def record_task_run(device, serialno, num_iter=1):
         if stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=10) >= 0:
             Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], serialno=serialno)
 
-            log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
+            log("Waiting for {} recovery".format("SSR" if GLOBAL["test_config"] == "ssr" else "ASR"))
             elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
             if elapsed < 0:
                 log("Timeout in waiting for rising event, possibly caused by missing event not being caught")
@@ -447,7 +452,7 @@ def voip_task_run(device, serialno, num_iter=1):
         trial = Trial(taskname="voip_rx", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
-        AATApp.print_log(device, severity="i", tag=TAG, log="voip_rx_task #{}".format(i+1))
+        AATApp.print_log(device, severity="i", tag=GLOBAL["tag"], log="voip_rx_task #{}".format(i+1))
 
         time.sleep(1)
         stm.reset()
@@ -459,13 +464,13 @@ def voip_task_run(device, serialno, num_iter=1):
             continue
         time.sleep(1)
 
-        log("trigger_{}()".format(TEST_CONFIG))
-        if TEST_CONFIG == "ssr":
+        log("trigger_{}()".format(GLOBAL["test_config"]))
+        if GLOBAL["test_config"] == "ssr":
             trigger_ssr(serialno)
         else:
             trigger_asr(serialno)
 
-        log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
+        log("Waiting for {} recovery".format("SSR" if GLOBAL["test_config"] == "ssr" else "ASR"))
         elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
         log("elapsed: {} ms".format(elapsed))
 
@@ -513,7 +518,7 @@ def voip_task_run(device, serialno, num_iter=1):
         trial = Trial(taskname="voip_tx", pass_check=lambda t: t.ds["extra"]["elapsed"] > 0)
         trial.put_extra(name="iter_id", value=i+1)
 
-        AATApp.print_log(device, severity="i", tag=TAG, log="voip_tx_task #{}".format(i+1))
+        AATApp.print_log(device, severity="i", tag=GLOBAL["tag"], log="voip_tx_task #{}".format(i+1))
 
         time.sleep(2)
 
@@ -528,8 +533,8 @@ def voip_task_run(device, serialno, num_iter=1):
             continue
         time.sleep(2)
 
-        log("trigger_{}()".format(TEST_CONFIG))
-        if TEST_CONFIG == "ssr":
+        log("trigger_{}()".format(GLOBAL["test_config"]))
+        if GLOBAL["test_config"] == "ssr":
             trigger_ssr(serialno)
         else:
             trigger_asr(serialno)
@@ -538,7 +543,7 @@ def voip_task_run(device, serialno, num_iter=1):
         stm.wait_for_event(DetectionStateListener.Event.INACTIVE, timeout=10)
         Adb.execute(cmd=["shell", "rm", "-f", "sdcard/AudioFunctionsDemo-record-prop.txt"], serialno=serialno)
 
-        log("Waiting for {} recovery".format("SSR" if TEST_CONFIG == "ssr" else "ASR"))
+        log("Waiting for {} recovery".format("SSR" if GLOBAL["test_config"] == "ssr" else "ASR"))
         elapsed = stm.wait_for_event(DetectionStateListener.Event.RISING_EDGE, timeout=15)
         log("elapsed: {} ms".format(elapsed))
 
@@ -598,13 +603,15 @@ def voip_task_run(device, serialno, num_iter=1):
 
 
 if __name__ == "__main__":
-    num_iter = int(sys.argv[1]) if len(sys.argv) > 1 else 1
-    serialno = sys.argv[2] if len(sys.argv) > 2 else None
+    success, ret = AATArgParseUtils.parse_arg(sys.argv[1:], options=["num_iter", "serialno", "test_type"], required=["test_type"])
+    if not success:
+        raise(ret)
+
     # ViewClient tries to access the system arguments, then it might cause RuntimeError
     if len(sys.argv) > 1: del sys.argv[1:]
     while True:
         try:
-            run(num_iter=num_iter, serialno=serialno)
+            run(**ret)
             break
         except Exception as e:
             print(e)
