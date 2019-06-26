@@ -603,7 +603,7 @@ def voip_task_run(device, serialno, num_iter=1):
 
 
 if __name__ == "__main__":
-    success, ret = AATArgParseUtils.parse_arg(sys.argv[1:], options=["num_iter", "serialno", "test_type"], required=["test_type"])
+    success, ret = AATArgParseUtils.parse_arg(sys.argv[1:], options=["num_iter=", "serialno=", "test_type="], required=["test_type"])
     if not success:
         raise(ret)
 
