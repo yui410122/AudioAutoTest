@@ -63,6 +63,9 @@ class Trial(object):
         }
         self.pass_check = pass_check
 
+    def is_valid(self):
+        return self.ds["status"] == "valid"
+
     def is_pass(self):
         if not self.is_pass:
             raise ValueError("The pass/fail check function has not been defined")
