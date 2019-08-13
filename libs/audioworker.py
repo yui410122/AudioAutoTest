@@ -26,7 +26,7 @@ class AudioWorkerApp(object):
 
     @staticmethod
     def relaunch_app(device=None, serialno=None):
-        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am force-stop {}".format(AudioWorkerApp.PACKAGE))
+        AudioWorkerApp.stop_app(device, serialno)
         time.sleep(2)
         AudioWorkerApp.launch_app(device, serialno)
 
@@ -34,6 +34,10 @@ class AudioWorkerApp(object):
     def launch_app(device=None, serialno=None):
         component = AudioWorkerApp.PACKAGE + "/" + AudioWorkerApp.MAINACTIVITY
         AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am start -n {}".format(component))
+
+    @staticmethod
+    def stop_app(device=None, serialno=None):
+        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am force-stop {}".format(AudioWorkerApp.PACKAGE))
 
     @staticmethod
     def send_intent(device, serialno, name, configs={}, tolog=True):
@@ -79,17 +83,19 @@ class AudioWorkerApp(object):
         AudioWorkerApp.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def _common_info(device=None, serialno=None, ctype=None, controller=None):
+    def _common_info(device=None, serialno=None, ctype=None, controller=None, tolog=False):
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
         filename = "{}-info.txt".format(datetime.datetime.now())
         filename = "-".join(filename.split())
         filepath = "{}/{}/{}".format(AudioWorkerApp.DATA_FOLDER, controller, filename)
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": filename}, tolog=False)
-        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=False)
+        AudioWorkerApp.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
+        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
         out = out.splitlines()
-        AudioWorkerApp.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=False)
-        if len(out) <= 1:
+        AudioWorkerApp.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=tolog)
+        if len(out) == 0:
             return None
+        elif len(out) == 1:
+            return {}
 
         try:
             info_timestamp = float(out[0].strip().split("::")[1]) / 1000.
@@ -102,8 +108,8 @@ class AudioWorkerApp(object):
         return json.loads("".join(out[1:]))
 
     @staticmethod
-    def playback_info(device=None, serialno=None):
-        return AudioWorkerApp._common_info(device, serialno, "playback", "PlaybackController")
+    def playback_info(device=None, serialno=None, tolog=False):
+        return AudioWorkerApp._common_info(device, serialno, "playback", "PlaybackController", tolog=tolog)
 
     @staticmethod
     def playback_stop(device=None, serialno=None):
@@ -118,8 +124,8 @@ class AudioWorkerApp(object):
                 AudioWorkerApp.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_info(device=None, serialno=None):
-        info = AudioWorkerApp._common_info(device, serialno, "record", "RecordController")
+    def record_info(device=None, serialno=None, tolog=False):
+        info = AudioWorkerApp._common_info(device, serialno, "record", "RecordController", tolog=tolog)
         if not info:
             return None
 
@@ -205,8 +211,8 @@ class AudioWorkerApp(object):
         AudioWorkerApp.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def voip_info(device=None, serialno=None):
-        return AudioWorkerApp._common_info(device, serialno, "voip", "VoIPController")
+    def voip_info(device=None, serialno=None, tolog=False):
+        return AudioWorkerApp._common_info(device, serialno, "voip", "VoIPController", tolog=tolog)
 
     @staticmethod
     def voip_start(device=None, serialno=None, rxfreq=440., rxamp=0.6,
@@ -252,12 +258,29 @@ class AudioWorkerApp(object):
         AudioWorkerApp.voip_change_configs(device, serialno, rxamp=0)
 
     @staticmethod
-    def voip_tx_dump(device=None, serialno=None, path=None):
+    def voip_tx_dump(device=None, serialno=None, path=None, tolog=False):
         if not path:
             return
 
+        dpath = "{}/VoIPController".format(AudioWorkerApp.DATA_FOLDER)
+        out, _ = AudioWorkerApp.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
+        if len(out.split()) > 0:
+            AudioWorkerApp.device_shell(device, serialno, cmd="rm -f {}/*".format(dpath), tolog=tolog)
+
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.tx.dump"
-        AudioWorkerApp.send_intent(device, serialno, {"filename": path})
+        AudioWorkerApp.send_intent(device, serialno, name, {"filename": "dump.wav"})
+
+        interval = 0.2
+        timeout = 3 / interval
+        while timeout > 0:
+            out, _ = AudioWorkerApp.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
+            if "dump.wav" in out.split():
+                break
+            timeout -= 1
+            time.sleep(interval)
+
+        Adb.execute(cmd=["pull", "{}/dump.wav".format(dpath), path], serialno=serialno, tolog=tolog)
+        AudioWorkerApp.device_shell(device, serialno, cmd="rm -f {}/dump.wav".format(dpath), tolog=tolog)
 
     @staticmethod
     def print_log(device=None, serialno=None, severity="i", tag="AudioWorkerAPIs", log=None):
