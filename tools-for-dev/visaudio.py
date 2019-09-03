@@ -27,6 +27,8 @@ def print_sig(signal, fs, outpath, horiz_extent_ratio, tfrom, tto):
         xlim = plt.gca().get_xlim()
         plt.gcf().set_size_inches([(xlim[1]-xlim[0])*horiz_extent_ratio, 3])
 
+    plt.title("Waveform (maximal amplitude: {})".format(np.max(np.abs(signal.flatten()))))
+
     try:
         plt.savefig(outpath, bbox_inches="tight", pad_inches=0, dpi=300)
     except Exception as e:
