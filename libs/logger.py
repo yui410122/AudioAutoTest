@@ -15,9 +15,9 @@ except ImportError:
 class LoggerThread(threading.Thread):
     MAX_SIZE = 100000
     BUF_SIZE = 10
-    LOG_DIR = ROOT_DIR + "{}log{}".format(SEP, SEP)
+    LOG_DIR = ROOT_DIR + "{}{}{}".format(SEP, "{}log", SEP)
 
-    def __init__(self, prefix="", max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
+    def __init__(self, prefix="", logfolder_prefix="", max_size=MAX_SIZE, buf_size=BUF_SIZE, log_dir=LOG_DIR):
         super(LoggerThread, self).__init__()
         self.daemon = True
         self.msg_q = queue.Queue()
@@ -27,7 +27,7 @@ class LoggerThread(threading.Thread):
         self.max_size = max_size
         self.buf_size = buf_size
         self.current_size = 0
-        self.log_dir = log_dir
+        self.log_dir = log_dir.format("{}-".format(logfolder_prefix) if len(logfolder_prefix) > 0 else logfolder_prefix)
         self._to_stdout = False
         self._to_file = False
 
@@ -109,11 +109,11 @@ class Logger(object):
         BOTH_FILE_AND_STDOUT = STDOUT | FILE
 
     @staticmethod
-    def init(mode=Mode.BOTH_FILE_AND_STDOUT, prefix=""):
+    def init(mode=Mode.BOTH_FILE_AND_STDOUT, prefix="", logfolder_prefix=""):
         if Logger.HAS_BEEN_INIT:
             return
 
-        Logger.WORK_THREAD = LoggerThread(prefix=prefix)
+        Logger.WORK_THREAD = LoggerThread(prefix=prefix, logfolder_prefix=logfolder_prefix)
 
         if mode & Logger.Mode.STDOUT > 0:
             Logger.WORK_THREAD.to_stdout()
