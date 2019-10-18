@@ -21,7 +21,7 @@ class CommandHandler(object):
 class AudioFunction(object):
     WORK_THREAD = AudioCommandThread()
     WORK_THREAD.daemon = True
-    AUDIO_CONFIG = AudioConfig(fs=16000, ch=1)
+    AUDIO_CONFIG = AudioConfig(fs=48000, ch=1)
     COMMAND = CommandHandler()
 
     HAS_BEEN_INIT = False
