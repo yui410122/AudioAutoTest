@@ -109,6 +109,7 @@ def try_to_reboot_device(serialno, timeout):
 
 
 def run(test_type, num_iter=1, serialno=None):
+    num_iter = int(num_iter)
     GLOBAL["test_config"] = test_type
     GLOBAL["tag"] = GLOBAL["tag"].format(GLOBAL["test_config"])
     AudioFunction.init()
@@ -126,6 +127,7 @@ def run(test_type, num_iter=1, serialno=None):
     push_files(serialno)
 
     Adb.execute(["shell", "svc", "power", "stayon", "true"], serialno=serialno)
+    Adb.execute(["root"], serialno=serialno)
 
     out, _ = Adb.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno)
     out = out.strip()
@@ -139,7 +141,7 @@ def run(test_type, num_iter=1, serialno=None):
     # time.sleep(5)
 
     function_items = [
-        lambda x: playback_task_run(device, num_iter=x, postfix=postfix),
+        lambda x: playback_task_run(device, serialno, num_iter=x, postfix=postfix),
         lambda x: record_task_run(device, serialno, num_iter=x),
         lambda x: voip_task_run(device, serialno, num_iter=x)
     ]
@@ -199,7 +201,7 @@ def run(test_type, num_iter=1, serialno=None):
     Logger.finalize()
 
 
-def playback_task_run(device, num_iter=1, postfix=None):
+def playback_task_run(device, serialno, num_iter=1, postfix=None):
     log("playback_task_run++")
 
     trials = []
@@ -240,7 +242,7 @@ def playback_task_run(device, num_iter=1, postfix=None):
                 if name == "offload":
                     time.sleep(5)
 
-            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=15) < 0:
+            if stm.wait_for_event(DetectionStateListener.Event.ACTIVE, timeout=60) < 0:
                 log("the tone was not detected, abort the iteration this time...")
                 AATApp.playback_stop(device)
                 trial.invalidate(errormsg="early return, possible reason: rx no sound")
