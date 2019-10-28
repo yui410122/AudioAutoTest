@@ -136,6 +136,57 @@ class AudioWorkerApp(object):
         return info
 
     @staticmethod
+    def tx_detector_register(prefix, device, serialno, dclass, params):
+        if not dclass:
+            return
+        try:
+            params = json.dumps(json.dumps(params))
+        except:
+            log("params cannot be converted to json string")
+            return
+
+        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.register".format(prefix)
+        configs = {
+            "class": dclass,
+            "params": params
+        }
+        AudioWorkerApp.send_intent(device, serialno, name, configs)
+
+    @staticmethod
+    def tx_detector_unregister(prefix, device, serialno, chandle):
+        if not chandle:
+            return
+
+        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.unregister".format(prefix)
+        AudioWorkerApp.send_intent(device, serialno, name, {"class-handle": chandle})
+
+    @staticmethod
+    def tx_detector_clear(prefix, device, serialno, info_func):
+        info = info_func(device, serialno)
+        if not info:
+            return
+
+        for chandle in info[1].keys():
+            AudioWorkerApp.tx_detector_unregister(prefix, device, serialno, chandle)
+
+    @staticmethod
+    def tx_detector_set_params(prefix, device, serialno, chandle, params):
+        if not chandle:
+            return
+        try:
+            params = json.dumps(json.dumps(params))
+        except:
+            log("params cannot be converted to json string")
+            return
+
+        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.setparams".format(prefix)
+        configs = {
+            "class-handle": chandle,
+            "params": params
+        }
+        AudioWorkerApp.send_intent(device, serialno, name, configs)
+
+    @staticmethod
     def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, dump_buffer_ms=0):
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
@@ -161,54 +212,19 @@ class AudioWorkerApp(object):
 
     @staticmethod
     def record_detector_register(device=None, serialno=None, dclass=None, params={}):
-        if not dclass:
-            return
-        try:
-            params = json.dumps(json.dumps(params))
-        except:
-            log("params cannot be converted to json string")
-            return
-
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.detect.register"
-        configs = {
-            "class": dclass,
-            "params": params
-        }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        AudioWorkerApp.tx_detector_register("record", device, serialno, dclass, params)
 
     @staticmethod
     def record_detector_unregister(device=None, serialno=None, chandle=None):
-        if not chandle:
-            return
-
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.detect.unregister"
-        AudioWorkerApp.send_intent(device, serialno, name, {"class-handle": chandle})
+        AudioWorkerApp.tx_detector_unregister("record", device, serialno, chandle)
 
     @staticmethod
     def record_detector_clear(device=None, serialno=None):
-        info = AudioWorkerApp.record_info(device, serialno)
-        if not info:
-            return
-
-        for chandle in info[1].keys():
-            AudioWorkerApp.record_detector_unregister(device, serialno, chandle)
+        AudioWorkerApp.tx_detector_clear("record", device, serialno, AudioWorkerApp.record_info)
 
     @staticmethod
     def record_detector_set_params(device=None, serialno=None, chandle=None, params={}):
-        if not chandle:
-            return
-        try:
-            params = json.dumps(json.dumps(params))
-        except:
-            log("params cannot be converted to json string")
-            return
-
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.detect.setparams"
-        configs = {
-            "class-handle": chandle,
-            "params": params
-        }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        AudioWorkerApp.tx_detector_set_params("record", device, serialno, chandle, params)
 
     @staticmethod
     def voip_info(device=None, serialno=None, tolog=False):
@@ -283,6 +299,22 @@ class AudioWorkerApp(object):
         AudioWorkerApp.device_shell(device, serialno, cmd="rm -f {}/dump.wav".format(dpath), tolog=tolog)
 
     @staticmethod
+    def voip_detector_register(device=None, serialno=None, dclass=None, params={}):
+        AudioWorkerApp.tx_detector_register("voip", device, serialno, dclass, params)
+
+    @staticmethod
+    def voip_detector_unregister(device=None, serialno=None, chandle=None):
+        AudioWorkerApp.tx_detector_unregister("voip", device, serialno, chandle)
+
+    @staticmethod
+    def voip_detector_clear(device=None, serialno=None):
+        AudioWorkerApp.tx_detector_clear("voip", device, serialno, AudioWorkerApp.voip_info)
+
+    @staticmethod
+    def voip_detector_set_params(device=None, serialno=None, chandle=None, params={}):
+        AudioWorkerApp.tx_detector_set_params("voip", device, serialno, chandle, params)
+
+    @staticmethod
     def print_log(device=None, serialno=None, severity="i", tag="AudioWorkerAPIs", log=None):
         pass
 
@@ -295,7 +327,8 @@ from aatapp import AATAppToneDetectorThread
 from logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
-    def __init__(self, serialno, target_freq, callback, detector_reg_func, detector_unreg_func, detector_setparams_func, info_func):
+    def __init__(self, serialno, target_freq, callback,
+        detector_reg_func, detector_unreg_func, detector_setparams_func, info_func, parse_detector_func):
         super(AudioWorkerToneDetectorThread, self).__init__(serialno=serialno, target_freq=target_freq, callback=callback)
         self.serialno = serialno
         self.chandle = None
@@ -303,12 +336,15 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         self.detector_unreg_func = detector_unreg_func
         self.detector_setparams_func = detector_setparams_func
         self.info_func = info_func
-        self.detector_reg_func(serialno=serialno, dclass="ToneDetector", params={"target-freq": [target_freq]})
+        self.parse_detector_func = parse_detector_func
+        self.detector_reg_func(serialno=serialno,
+            dclass="ToneDetector", params={"target-freq": [target_freq]})
 
     def get_tag(self):
         return "AudioWorkerToneDetectorThread"
 
     def get_info(self):
+        # Record
         # [
         #   {
         #     "params": {
@@ -337,12 +373,76 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         #     }
         #   }
         # ]
+
+        # VoIP
+        # [
+        #   {
+        #     "non-offload": {
+        #       "0": {
+        #         "command-id": "Google-AudioWorker::WorkerFunctionView-1572251050140p-start",
+        #         "params": {
+        #           "num-channels": 1,
+        #           "pcm-bit-width": 16,
+        #           "amplitude": 0.6,
+        #           "playback-id": 0,
+        #           "target-freq": 220,
+        #           "sampling-freq": 8000,
+        #           "type": "non-offload",
+        #           "low-latency-mode": false
+        #         },
+        #         "class": "com.google.audioworker.functions.audio.playback.PlaybackStartFunction",
+        #         "has-ack": false
+        #       }
+        #     }
+        #   },
+        #   {
+        #     "command-id": "Google-AudioWorker::WorkerFunctionView-1572251050140c-start",
+        #     "params": {
+        #       "num-channels": 1,
+        #       "sampling-freq": 8000,
+        #       "pcm-bit-width": 16,
+        #       "dump-buffer-ms": 0
+        #     },
+        #     "class": "com.google.audioworker.functions.audio.record.RecordStartFunction",
+        #     "has-ack": false
+        #   },
+        #   {
+        #     "com.google.audioworker.functions.audio.record.detectors.ToneDetector@ca926e4": {
+        #       "Targets": [
+        #         {
+        #           "target-freq": 110
+        #         }
+        #       ],
+        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@ca926e4",
+        #       "Process Frame Size": 50,
+        #       "unit": {
+        #         "Process Frame Size": "ms",
+        #         "Sampling Frequency": "Hz"
+        #       },
+        #       "Sampling Frequency": 8000
+        #     },
+        #     "com.google.audioworker.functions.audio.record.detectors.ToneDetector@5ea1714": {
+        #       "Targets": [
+        #         {
+        #           "target-freq": 440
+        #         }
+        #       ],
+        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@5ea1714",
+        #       "Process Frame Size": 50,
+        #       "unit": {
+        #         "Process Frame Size": "ms",
+        #         "Sampling Frequency": "Hz"
+        #       },
+        #       "Sampling Frequency": 8000
+        #     }
+        #   }
+        # ]
         info = self.info_func(serialno=self.serialno)
         if not info:
             Logger.log("{}::get_info".format(self.get_tag()), "no active record, null info returned")
             return
 
-        detectors = info[1]
+        detectors = self.parse_detector_func(info)
         chandle = None
         for key, value in detectors.items():
             for each in value["Targets"]:
@@ -354,7 +454,6 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
 
         if not chandle:
             Logger.log("{}::get_info".format(self.get_tag()), "no detector handle!")
-            Logger.log("{}::get_info".format(self.get_tag()))
             self.dump()
         else:
             self.chandle = chandle

@@ -317,11 +317,15 @@ def record_task_run(device, serialno, num_iter=1):
     try:
         ToneDetector.start_listen(**listen_params)
     except:
+        def record_parse_detector(record_info):
+            return record_info[1]
+
         listen_params["params"] = {
             "detector_reg_func": AATApp.record_detector_register,
             "detector_unreg_func": AATApp.record_detector_unregister,
             "detector_setparams_func": AATApp.record_detector_set_params,
-            "info_func": AATApp.record_info
+            "info_func": AATApp.record_info,
+            "parse_detector_func": record_parse_detector
         }
         ToneDetector.start_listen(**listen_params)
 
@@ -509,8 +513,32 @@ def voip_task_run(device, serialno, num_iter=1):
     time.sleep(2)
     AATApp.voip_mute_output(device)
     time.sleep(10)
-    log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, 440))
-    ToneDetector.start_listen(serialno=serialno, target_freq=440, cb=lambda event: stm.tone_detected_event_cb(event), dclass=ToneDetectorForDeviceThread)
+    log("ToneDetector.start_listen(serialno={}, target_freq={})".format(serialno, out_freq))
+
+    listen_params = {
+        "serialno": serialno,
+        "target_freq": out_freq,
+        "cb": lambda event: stm.tone_detected_event_cb(event),
+        "dclass": ToneDetectorForDeviceThread
+    }
+    try:
+        ToneDetector.start_listen(**listen_params)
+    except:
+        def voip_parse_detector(voip_info):
+            import json
+            info = voip_info[2]
+            for chandle in info:
+                info[chandle] = json.loads(info[chandle])
+            return info
+
+        listen_params["params"] = {
+            "detector_reg_func": AATApp.voip_detector_register,
+            "detector_unreg_func": AATApp.voip_detector_unregister,
+            "detector_setparams_func": AATApp.voip_detector_set_params,
+            "info_func": AATApp.voip_info,
+            "parse_detector_func": voip_parse_detector
+        }
+        ToneDetector.start_listen(**listen_params)
 
     has_triggered_bugreport = False
 
