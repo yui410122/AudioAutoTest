@@ -3,9 +3,13 @@ import subprocess
 import json
 import datetime
 import time
+from libs import get_path
 from libs.adbutils import Adb
+from libs.appinterface import AppInterface
 
-class AudioWorkerApp(object):
+class AudioWorkerApp(AppInterface):
+    TAG = "AudioWorkerApp"
+    APK_PATH = get_path("apk", "debug", "audioworker.apk")
     INTENT_PREFIX = "am broadcast -a"
     AUDIOWORKER_INTENT_PREFIX = "com.google.audioworker.intent."
 
@@ -13,6 +17,14 @@ class AudioWorkerApp(object):
     MAINACTIVITY = ".activities.MainActivity"
 
     DATA_FOLDER = "/storage/emulated/0/Google-AudioWorker-data"
+
+    @staticmethod
+    def get_apk_path():
+        return AudioWorkerApp.APK_PATH
+
+    @staticmethod
+    def get_package():
+        return AudioWorkerApp.PACKAGE
 
     @staticmethod
     def device_shell(device=None, serialno=None, cmd=None, tolog=True):
@@ -142,7 +154,7 @@ class AudioWorkerApp(object):
         try:
             params = json.dumps(json.dumps(params))
         except:
-            log("params cannot be converted to json string")
+            AudioWorkerApp.log("params cannot be converted to json string")
             return
 
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.register".format(prefix)
@@ -176,7 +188,7 @@ class AudioWorkerApp(object):
         try:
             params = json.dumps(json.dumps(params))
         except:
-            log("params cannot be converted to json string")
+            AudioWorkerApp.log("params cannot be converted to json string")
             return
 
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.setparams".format(prefix)
