@@ -156,7 +156,7 @@ class AudioCommandThread(threading.Thread):
                 spectrum = spectrum[:int(cmd.nfft/2.0)]
                 unit_freq = 1.0*cfg.fs / cmd.nfft
                 peaks = find_peaks(spectrum)
-                tones = map(lambda x: (x[0]*unit_freq, 20*np.log10(x[1])), peaks)
+                tones = list(map(lambda x: (x[0]*unit_freq, 20*np.log10(x[1])), peaks))
                 if cfg.cb:
                     cfg.cb(detected_tones=tones)
 

@@ -1,4 +1,8 @@
-from com.dtmilano.android.viewclient import ViewClient
+try:
+    from com.dtmilano.android.viewclient import ViewClient
+except ImportError:
+    from androidviewclient3.viewclient import ViewClient
+
 import subprocess
 import datetime
 import time

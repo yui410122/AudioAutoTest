@@ -1,10 +1,10 @@
-from audiothread import *
 import threading
 import numpy as np
 import time
 import os
 import datetime
 
+from libs.audiothread import *
 from libs.adbutils import Adb
 from libs.logger import Logger
 from libs.timeutils import TimeUtils

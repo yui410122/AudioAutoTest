@@ -1,6 +1,12 @@
 import datetime
 import json
-from timeutils import TimeUtils
+from libs.timeutils import TimeUtils
+
+try:
+    import functools
+    reduce = functools.reduce
+except ImportError:
+    pass
 
 class TrialHelper(object):
     @staticmethod

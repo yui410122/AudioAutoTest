@@ -109,12 +109,14 @@ class AudioWorkerApp(AppInterface):
         elif len(out) == 1:
             return {}
 
+        import traceback
         try:
             info_timestamp = float(out[0].strip().split("::")[1]) / 1000.
             info_t = datetime.datetime.fromtimestamp(info_timestamp)
             # if (datetime.datetime.now() - info_t).total_seconds() > 1:
             #     return None
         except:
+            traceback.print_exc()
             return None
 
         return json.loads("".join(out[1:]))
@@ -333,10 +335,10 @@ class AudioWorkerApp(AppInterface):
 
 import threading
 import time
-from timeutils import TicToc, TimeUtils
-from audiofunction import ToneDetectorThread, ToneDetector
-from aatapp import AATAppToneDetectorThread
-from logger import Logger
+from libs.timeutils import TicToc, TimeUtils
+from libs.audiofunction import ToneDetectorThread, ToneDetector
+from libs.aatapp import AATAppToneDetectorThread
+from libs.logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
     def __init__(self, serialno, target_freq, callback,

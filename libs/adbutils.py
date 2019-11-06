@@ -35,12 +35,19 @@ class Adb(object):
         cmd = cmd_prefix + cmd
         if tolog:
             log("exec: {}".format(cmd))
-        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+        out, err =  subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+
+        if not isinstance(out, str):
+            out = out.decode("utf-8")
+        if not isinstance(err, str):
+            err = err.decode("utf-8")
+
+        return out, err
 
     @staticmethod
     def get_devices(tolog=True):
         out, _ = Adb.execute(["devices"], tolog=tolog)
-        devices = map(lambda x: x.strip(), out.splitlines())
+        devices = list(map(lambda x: x.strip(), out.splitlines()))
         del devices[0]
         devices = [x.split()[0] for x in devices if len(x) > 0 and x.split()[1] == "device"]
         return devices

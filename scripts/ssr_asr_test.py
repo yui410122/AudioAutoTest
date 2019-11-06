@@ -1,4 +1,8 @@
-from com.dtmilano.android.viewclient import ViewClient
+try:
+    from com.dtmilano.android.viewclient import ViewClient
+except ImportError:
+    from androidviewclient3.viewclient import ViewClient
+
 import os
 import subprocess
 import time
@@ -164,7 +168,8 @@ def run(test_type, num_iter=1, serialno=None):
                 log("Function failed after {} trials...".format(temp - num_iter))
                 need_to_reboot = True
 
-        map(lambda trial: trial.put_extra(name="batch_id", value=batch_count), trials_batch)
+        for trial in trials_batch:
+            trial.put_extra(name="batch_id", value=batch_count)
         trials += trials_batch
         with open("{}{}{}_report{}{}".format(ROOT_DIR, SEP, GLOBAL["test_config"], SEP, filename), "w") as f:
             f.write(TrialHelper.to_json(trials))
@@ -638,6 +643,7 @@ if __name__ == "__main__":
         raise(ret)
 
     # ViewClient tries to access the system arguments, then it might cause RuntimeError
+    import traceback
     if len(sys.argv) > 1: del sys.argv[1:]
     while True:
         try:
@@ -645,3 +651,4 @@ if __name__ == "__main__":
             break
         except Exception as e:
             print(e)
+            traceback.print_exc()

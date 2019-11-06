@@ -81,9 +81,9 @@ class AATApp(object):
 
 import threading
 import time
-from audiofunction import ToneDetectorThread, ToneDetector
-from logger import Logger
-from adbutils import Adb
+from libs.audiofunction import ToneDetectorThread, ToneDetector
+from libs.logger import Logger
+from libs.adbutils import Adb
 
 class AATAppToneDetectorThread(ToneDetectorThread):
     def __init__(self, serialno, target_freq, callback):
@@ -113,7 +113,8 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         self.extra["dump-lock"].acquire()
         Logger.log(self.get_tag(), "dump called")
         Logger.log(self.get_tag(), "----------------------------------------------")
-        map(lambda msg: Logger.log("{}::dump".format(self.get_tag()), "\"{}\"".format(msg)), self.extra["dump"])
+        for msg in self.extra["dump"]:
+            Logger.log("{}::dump".format(self.get_tag()), "\"{}\"".format(msg))
         del self.extra["dump"][:]
         Logger.log(self.get_tag(), "----------------------------------------------")
         self.extra["dump-lock"].release()
@@ -137,7 +138,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         def freq_cb(msg):
             line = msg.splitlines()[0]
             strs = line.split()
-            freq, amp_db = map(float, strs[-1].split(","))
+            freq, amp_db = list(map(float, strs[-1].split(",")))
             the_date, the_time = strs[:2]
 
             time_str = the_date + " " + the_time

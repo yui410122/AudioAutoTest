@@ -1,8 +1,12 @@
-from com.dtmilano.android.viewclient import ViewClient
+try:
+    from com.dtmilano.android.viewclient import ViewClient
+    from StringIO import StringIO
+except ImportError:
+    from androidviewclient3.viewclient import ViewClient
+    from io import StringIO
 
 import threading
 import datetime
-import StringIO as sio
 import time
 
 from libs.activitystatemachine import ActivityStateMachine
@@ -28,7 +32,7 @@ class GMControlPanel(object):
 
     def get_current_song(self):
         vc = ViewClient(self.handler.device, self.handler.serialno)
-        so = sio.StringIO()
+        so = StringIO()
         vc.traverse(stream=so)
         line = [line for line in so.getvalue().splitlines() if GoogleMusicApp.CONTROL_PANEL_TRACKNAME_KEY in line]
         line = line[0] if len(line) > 0 else None
@@ -163,7 +167,7 @@ class GoogleMusicApp(ActivityStateMachine):
             self.cache["screen-info"] = container.getBounds()[1]
             self.push_dump("screen-info: {}".format(self.cache["screen-info"]))
 
-        so = sio.StringIO()
+        so = StringIO()
         vc.traverse(stream=so)
         lines = so.getvalue().splitlines()
         play_card_key = GoogleMusicApp.PLAY_CARD_KEY
@@ -323,7 +327,7 @@ class GoogleMusicApp(ActivityStateMachine):
         li_title_key = GoogleMusicApp.LI_TITLE_KEY
         while True:
             song_props = self._fetch_songs_on_current_screen(vc=vc)
-            song_props = filter(lambda prop: not prop[0] in songs.keys(), song_props)
+            song_props = list(filter(lambda prop: not prop[0] in songs.keys(), song_props))
             if len(song_props) == 0:
                 break
             for name, duration in song_props:
@@ -346,7 +350,7 @@ class GoogleMusicApp(ActivityStateMachine):
 
     def _fetch_songs_on_current_screen(self, vc):
         vc.dump()
-        so = sio.StringIO()
+        so = StringIO()
         vc.traverse(stream=so)
         traverse_str = so.getvalue()
         self.push_dump("in _fetch_songs_on_current_screen: got the traverse string\n{}".format(traverse_str))
@@ -416,7 +420,7 @@ class GoogleMusicApp(ActivityStateMachine):
 
     def get_state(self):
         vc = ViewClient(self.device, self.serialno)
-        so = sio.StringIO()
+        so = StringIO()
         vc.traverse(stream=so)
         states = [state for state in GoogleMusicApp.State.ALL_STATES if state["check"](so.getvalue())]
         if len(states) > 1:
