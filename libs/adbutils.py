@@ -1,12 +1,9 @@
 import subprocess
 from libs.logger import Logger
 
-TAG = "Adb"
-def log(msg):
-    Logger.log(TAG, msg)
-
 class Adb(object):
     HAS_BEEN_INIT = False
+    TAG = "Adb"
 
     @staticmethod
     def init():
@@ -18,13 +15,13 @@ class Adb(object):
         if not Adb.HAS_BEEN_INIT:
             Adb.init()
 
-    @staticmethod
-    def execute(cmd, serialno=None, tolog=True):
-        Adb._check_init()
-        return Adb._execute(cmd, serialno, tolog)
+    @classmethod
+    def execute(child, cmd, serialno=None, tolog=True):
+        child._check_init()
+        return child._execute(cmd, serialno, tolog)
 
-    @staticmethod
-    def _execute(cmd, serialno, tolog=True):
+    @classmethod
+    def _execute(child, cmd, serialno, tolog=True):
         if not isinstance(cmd, list):
             cmd = [cmd]
 
@@ -34,7 +31,7 @@ class Adb(object):
 
         cmd = cmd_prefix + cmd
         if tolog:
-            log("exec: {}".format(cmd))
+            Logger.log(child.TAG, "exec: {}".format(cmd))
         out, err =  subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
 
         if not isinstance(out, str):
@@ -44,49 +41,116 @@ class Adb(object):
 
         return out, err
 
-    @staticmethod
-    def get_devices(tolog=True):
-        out, _ = Adb.execute(["devices"], tolog=tolog)
+    @classmethod
+    def get_devices(child, tolog=True):
+        out, _ = child.execute(["devices"], tolog=tolog)
         devices = list(map(lambda x: x.strip(), out.splitlines()))
         del devices[0]
         devices = [x.split()[0] for x in devices if len(x) > 0 and x.split()[1] == "device"]
         return devices
 
-    @staticmethod
-    def device_fingerprint(serialno=None, tolog=True):
-        return Adb.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
+    @classmethod
+    def device_fingerprint(child, serialno=None, tolog=True):
+        return child.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
 
-    @staticmethod
-    def device_stayon(serialno=None, tolog=True, on=None):
+    @classmethod
+    def device_stayon(child, serialno=None, tolog=True, on=None):
         if on == None or type(on) is not bool:
             return
-        return Adb.execute(["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
+        return child.execute(["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
 
-    @staticmethod
-    def device_keyevent(serialno=None, tolog=True, keyevent=None):
+    @classmethod
+    def device_keyevent(child, serialno=None, tolog=True, keyevent=None):
         if not keyevent:
             return
-        return Adb.execute(["shell", "input", "keyevent", str(keyevent)])
+        return child.execute(["shell", "input", "keyevent", str(keyevent)])
 
-    @staticmethod
-    def device_keyevent_menu(serialno=None, tolog=True):
-        return Adb.device_keyevent(serialno, tolog, "KEYCODE_MENU")
+    @classmethod
+    def device_keyevent_menu(child, serialno=None, tolog=True):
+        return child.device_keyevent(serialno, tolog, "KEYCODE_MENU")
 
-    @staticmethod
-    def device_keyevent_power(serialno=None, tolog=True):
-        return Adb.device_keyevent(serialno, tolog, "KEYCODE_POWER")
+    @classmethod
+    def device_keyevent_power(child, serialno=None, tolog=True):
+        return child.device_keyevent(serialno, tolog, "KEYCODE_POWER")
 
-    @staticmethod
-    def device_lock(serialno=None, tolog=True):
+    @classmethod
+    def device_lock(child, serialno=None, tolog=True):
         if tolog:
-            log("lock the screen")
-        Adb.device_stayon(serialno, tolog, on=True)
-        Adb.device_keyevent_power(serialno, tolog)
-        Adb.device_stayon(serialno, tolog, on=False)
+            Logger.log(child.TAG, "lock the screen")
+        child.device_stayon(serialno, tolog, on=True)
+        child.device_keyevent_power(serialno, tolog)
+        child.device_stayon(serialno, tolog, on=False)
+
+    @classmethod
+    def device_unlock(child, serialno=None, tolog=True):
+        if tolog:
+            Logger.log(child.TAG, "unlock the screen")
+        child.device_stayon(serialno, tolog, on=True)
+        child.device_keyevent_menu(serialno, tolog)
+
+try:
+    import functools
+    reduce = functools.reduce
+except:
+    pass
+
+import time
+
+class AudioAdb(Adb):
+    TAG = "AudioAdb"
 
     @staticmethod
-    def device_unlock(serialno=None, tolog=True):
-        if tolog:
-            log("unlock the screen")
-        Adb.device_stayon(serialno, tolog, on=True)
-        Adb.device_keyevent_menu(serialno, tolog)
+    def get_stream_volumes(serialno=None, tolog=True):
+        out, _ = AudioAdb.execute(["shell", "dumpsys audio"], serialno=serialno, tolog=tolog)
+        lines = [line.strip() if isinstance(line, str) else line.decode("utf-8").strip() for line in out.splitlines()]
+        idices = [idx for idx, line in enumerate(lines) if line.startswith("- STREAM")]
+        if len(idices) < 2:
+            return None
+        nlines = idices[1] - idices[0]
+        volumes = {}
+
+        def parse_str_v(str_v):
+            str_v = str_v.strip()
+            if str_v.lower() in ["true", "false"]:
+                return str_v.lower() == "true"
+
+            if str_v.isdigit():
+                return int(str_v)
+
+            try:
+                return float(str_v)
+            except ValueError:
+                return str_v
+
+        for idx in idices:
+            stream = lines[idx].split()[1][:-1]
+            volumes[stream] = {}
+            for line in lines[idx+1:idx+nlines]:
+                result = [fragment.split(",") for fragment in line.split(":")]
+                result = reduce(lambda x, y: x + y, result)
+                if len(result) == 2:
+                    k, v = result
+                    volumes[stream][k.strip()] = parse_str_v(v)
+                elif len(result) % 2 == 1:
+                    k = result[0]
+                    volumes[stream][k] = {}
+                    for idx in range(1, len(result), 2):
+                        subk, v = result[idx], result[idx+1]
+                        volumes[stream][k][subk.strip()] = parse_str_v(v)
+
+        return volumes
+
+    @staticmethod
+    def adj_volume(keycode, times, serialno=None, tolog=True):
+        for x in range(times):
+            AudioAdb.execute(["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
+            time.sleep(0.2)
+
+    @staticmethod
+    def inc_volume(serialno=None, tolog=True, volume_steps=1):
+        AudioAdb.adj_volume(serialno=serialno, tolog=tolog, keycode=24, times=volume_steps+1)
+
+    @staticmethod
+    def dec_volume(serialno=None, tolog=True, volume_steps=1):
+        AudioAdb.adj_volume(serialno=serialno, tolog=tolog, keycode=25, times=volume_steps+1)
+
