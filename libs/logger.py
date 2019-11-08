@@ -1,6 +1,5 @@
 import threading
 import datetime
-import shutil
 import os
 
 from libs import ROOT_DIR, SEP
@@ -31,7 +30,7 @@ class LoggerThread(threading.Thread):
         self._to_stdout = False
         self._to_file = False
 
-        if len(self.log_dir) < 1 and self.log_dir[-1] != SEP:
+        if len(self.log_dir) > 0 and self.log_dir[-1] != SEP:
             self.log_dir += SEP
 
         self._update_timestamp()
@@ -43,20 +42,20 @@ class LoggerThread(threading.Thread):
         self._to_stdout = True
 
     def _update_timestamp(self):
-        self.log_timestamp = datetime.datetime.now()
+        t = datetime.datetime.now()
+        prefix = "{}-".format(self.prefix) if len(self.prefix) > 0 else ""
+        self.filename = "{}{}{:02d}{:02d}_{:02d}{:02d}{:02d}.log.txt".format(prefix, t.year, t.month, t.day, t.hour, t.minute, t.second)
+        self.log_timestamp = t
 
     def _dump(self):
         if not self._to_file:
             return
 
-        t = self.log_timestamp
-        prefix = "{}-".format(self.prefix) if len(self.prefix) > 0 else ""
-        filename = "{}{}{:02d}{:02d}_{:02d}{:02d}{:02d}.log.txt".format(prefix, t.year, t.month, t.day, t.hour, t.minute, t.second)
-        with open(self.log_dir + filename, "a") as f:
-            self.msg_stream.seek(0)
-            shutil.copyfileobj(self.msg_stream, f)
+        with open(self.log_dir + self.filename, "a") as f:
+            f.write(self.msg_stream.getvalue())
 
         self.msg_stream.truncate(0)
+        self.msg_stream.seek(0)
 
     def wait_for_queue_empty(self):
         while not self.msg_q.empty():
@@ -71,7 +70,9 @@ class LoggerThread(threading.Thread):
         super(LoggerThread, self).join(timeout)
 
     def run(self):
-        os.system("mkdir -p {}".format(self.log_dir))
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+
         while not self.stoprequest.isSet():
             try:
                 msg = self.msg_q.get(True, 0.1)
@@ -109,11 +110,11 @@ class Logger(object):
         BOTH_FILE_AND_STDOUT = STDOUT | FILE
 
     @staticmethod
-    def init(mode=Mode.BOTH_FILE_AND_STDOUT, prefix="", logfolder_prefix=""):
+    def init(mode=Mode.BOTH_FILE_AND_STDOUT, prefix="", logfolder_prefix="", log_dir=LoggerThread.LOG_DIR):
         if Logger.HAS_BEEN_INIT:
             return
 
-        Logger.WORK_THREAD = LoggerThread(prefix=prefix, logfolder_prefix=logfolder_prefix)
+        Logger.WORK_THREAD = LoggerThread(prefix=prefix, logfolder_prefix=logfolder_prefix, log_dir=log_dir)
 
         if mode & Logger.Mode.STDOUT > 0:
             Logger.WORK_THREAD.to_stdout()
@@ -122,6 +123,10 @@ class Logger(object):
 
         Logger.WORK_THREAD.start()
         Logger.HAS_BEEN_INIT = True
+
+    @staticmethod
+    def get_log_path():
+        return SEP.join([Logger.WORK_THREAD.log_dir, Logger.WORK_THREAD.filename])
 
     @staticmethod
     def finalize():

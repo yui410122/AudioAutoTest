@@ -129,6 +129,9 @@ class AudioWorkerApp(AppInterface):
     def playback_stop(device=None, serialno=None):
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.stop"
         info = AudioWorkerApp.playback_info(device, serialno)
+        if not info:
+            return
+
         for pbtype in info.keys():
             for pbid in info[pbtype].keys():
                 configs = {
