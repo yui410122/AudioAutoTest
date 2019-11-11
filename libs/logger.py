@@ -75,7 +75,8 @@ class LoggerThread(threading.Thread):
 
         while not self.stoprequest.isSet():
             try:
-                msg = self.msg_q.get(True, 0.1)
+                msg = self.msg_q.get(True, 10)
+                force_dump = False
                 logtext = "[{}] {}\n".format(datetime.datetime.now(), msg)
                 self.msg_stream.write(logtext)
 
@@ -85,16 +86,18 @@ class LoggerThread(threading.Thread):
                     sys.stdout.flush()
 
                 self.current_size += 1
-                if self.current_size % self.buf_size == 0:
-                    self._dump()
-
-                if self.current_size >= self.max_size:
-                    self._dump()
-                    self.current_size = 0
-                    self._update_timestamp()
 
             except queue.Empty:
-                continue
+                force_dump = True
+
+            if self.current_size > 0 and \
+                (self.current_size % self.buf_size == 0 or force_dump):
+                self._dump()
+
+            if self.current_size >= self.max_size:
+                self._dump()
+                self.current_size = 0
+                self._update_timestamp()
 
         if self.current_size > 0:
             self._dump()
