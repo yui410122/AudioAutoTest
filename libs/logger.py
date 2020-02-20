@@ -74,9 +74,20 @@ class LoggerThread(threading.Thread):
             os.makedirs(self.log_dir)
 
         while not self.stoprequest.isSet():
-            try:
-                msg = self.msg_q.get(True, 10)
-                force_dump = False
+            interval = 0.5
+            timeout = 10
+            count = 0
+            got_msg = False
+            while count < timeout / interval and not self.stoprequest.isSet():
+                try:
+                    msg = self.msg_q.get(True, interval)
+                    got_msg = True
+                    break
+                except queue.Empty:
+                    count += 1
+
+            force_dump = count >= timeout / interval
+            if got_msg:
                 logtext = "[{}] {}\n".format(datetime.datetime.now(), msg)
                 self.msg_stream.write(logtext)
 
@@ -86,9 +97,6 @@ class LoggerThread(threading.Thread):
                     sys.stdout.flush()
 
                 self.current_size += 1
-
-            except queue.Empty:
-                force_dump = True
 
             if self.current_size > 0 and \
                 (self.current_size % self.buf_size == 0 or force_dump):
