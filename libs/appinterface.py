@@ -34,7 +34,7 @@ class AppInterface(object):
 
     @classmethod
     def get_permissions(child, serialno=None, tolog=True):
-        if not child.installed():
+        if not child.installed(serialno=serialno, tolog=tolog):
             child.log("{} should be installed on the device.".format(child.TAG))
             return None
 
