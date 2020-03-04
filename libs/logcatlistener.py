@@ -1,5 +1,6 @@
 import threading
 import subprocess
+import sys
 import os
 import signal
 import platform
@@ -47,6 +48,8 @@ class LogcatOutputThread(threading.Thread):
                 break
 
             line = self.proc.stdout.readline()
+            if sys.version_info.major > 2:
+                line = line.decode("utf-8")
             self._handle_logcat_msg(line)
 
         try:
@@ -81,8 +84,8 @@ class LogcatListener(object):
 
     @staticmethod
     def kill_finished_threads():
-        while len(LogcatListener.WORK_THREADS.keys()) > 0:
-            for serialno, th in LogcatListener.WORK_THREADS.items():
+        while len(list(LogcatListener.WORK_THREADS.keys())) > 0:
+            for serialno, th in list(LogcatListener.WORK_THREADS.items()):
                 if th.poll() != None:
                     th.join(timeout=10)
                     if serialno in LogcatListener.WORK_THREADS.keys():
@@ -116,8 +119,8 @@ class LogcatListener(object):
     def finalize():
         for threadname, th in LogcatListener.WORK_THREADS.items():
             th.join(timeout=10)
-            if threadname in LogcatListener.WORK_THREADS.keys():
-                del LogcatListener.WORK_THREADS[threadname]
+
+        LogcatListener.WORK_THREADS.clear()
 
     @staticmethod
     def register_event(logcat_event, serialno=None, buffername="system"):

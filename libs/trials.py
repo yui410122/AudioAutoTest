@@ -49,7 +49,7 @@ class TrialHelper(object):
     @staticmethod
     def to_json(trials):
         TrialHelper._check_type(trials)
-        return json.dumps( map(lambda trial: trial.ds, trials), indent=4, ensure_ascii=False )
+        return json.dumps( list(map(lambda trial: trial.ds, trials)), indent=4, ensure_ascii=False )
 
     @staticmethod
     def pass_fail_list(trials, check_func=None):

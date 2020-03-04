@@ -101,7 +101,16 @@ class AudioWorkerApp(AppInterface):
         filename = "-".join(filename.split())
         filepath = "{}/{}/{}".format(AudioWorkerApp.DATA_FOLDER, controller, filename)
         AudioWorkerApp.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
-        out, _ = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
+
+        retry = 10
+        while retry > 0:
+            out, err = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
+            if len(out) == 0:
+                time.sleep(0.5)
+                retry -= 1
+                continue
+            break
+
         out = out.splitlines()
         AudioWorkerApp.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=tolog)
         if len(out) == 0:
@@ -126,9 +135,9 @@ class AudioWorkerApp(AppInterface):
         return AudioWorkerApp._common_info(device, serialno, "playback", "PlaybackController", tolog=tolog)
 
     @staticmethod
-    def playback_stop(device=None, serialno=None):
+    def playback_stop(device=None, serialno=None, tolog=False):
         name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.stop"
-        info = AudioWorkerApp.playback_info(device, serialno)
+        info = AudioWorkerApp.playback_info(device, serialno, tolog)
         if not info:
             return
 
