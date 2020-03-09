@@ -37,6 +37,20 @@ class AudioWorkerApp(AppInterface):
             return Adb.execute(["shell", cmd], serialno=serialno, tolog=tolog)
 
     @staticmethod
+    def is_alive(device=None, serialno=None, tolog=False):
+        ack_funcs = [
+            AudioWorkerApp.playback_info,
+            AudioWorkerApp.record_info,
+            AudioWorkerApp.voip_info
+        ]
+
+        for func in ack_funcs:
+            if func(device, serialno, tolog) == None:
+                return False
+
+        return True
+
+    @staticmethod
     def relaunch_app(device=None, serialno=None):
         AudioWorkerApp.stop_app(device, serialno)
         time.sleep(2)
@@ -152,7 +166,7 @@ class AudioWorkerApp(AppInterface):
     @staticmethod
     def record_info(device=None, serialno=None, tolog=False):
         info = AudioWorkerApp._common_info(device, serialno, "record", "RecordController", tolog=tolog)
-        if not info:
+        if info == None:
             return None
 
         if len(info) > 1:

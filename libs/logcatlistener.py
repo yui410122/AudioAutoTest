@@ -6,6 +6,7 @@ import signal
 import platform
 
 from libs.logger import Logger
+from libs.adbutils import Adb
 
 try:
     import queue
@@ -93,8 +94,8 @@ class LogcatListener(object):
 
     @staticmethod
     def _find_first_device_serialno():
-        out, _ = Adb.execute(cmd="devices")
-        return out.splitlines()[1].split("\t")[0] if len(out.splitlines()) > 1 else None
+        devices = Adb.get_devices()
+        return devices[0] if len(devices) > 0 else None
 
     @staticmethod
     def init(serialno=None, buffername="system", flush=False):
