@@ -11,8 +11,16 @@ class AppInterface(object):
         raise(NotImplementedError("not implemented"))
 
     @staticmethod
+    def get_launch_component():
+        raise(NotImplementedError("not implemented"))
+
+    @staticmethod
     def get_package():
         raise(NotImplementedError("not implemented"))
+
+    @classmethod
+    def clear_data(child, serialno=None, tolog=True):
+        Adb.execute(["shell", "pm clear {}".format(child.PACKAGE)], serialno=serialno, tolog=tolog)
 
     @classmethod
     def installed(child, serialno=None, tolog=True):
@@ -78,4 +86,12 @@ class AppInterface(object):
             cmd = "pm grant {} {}".format(child.get_package(), perm)
             out, err = Adb.execute(["shell", cmd], serialno=serialno, tolog=tolog)
             if warning and len(err) > 0:
-                log("grant permission failed: {}".format(err.strip()))
+                child.log("grant permission failed: {}".format(err.strip()))
+
+    @classmethod
+    def launch_app(child, device=None, serialno=None):
+        Adb.execute(["shell", "am start -n {}".format(child.get_launch_component())], serialno=serialno)
+
+    @classmethod
+    def stop_app(child, device=None, serialno=None):
+        Adb.execute(["shell", "am force-stop {}".format(child.get_package())], serialno=serialno)

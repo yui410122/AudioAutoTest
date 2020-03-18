@@ -20,11 +20,15 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def get_apk_path():
-        return AudioWorkerApp.APK_PATH
+        return __class__.APK_PATH
+
+    @staticmethod
+    def get_launch_component():
+        return "{}/{}".format(__class__.PACKAGE, __class__.MAINACTIVITY)
 
     @staticmethod
     def get_package():
-        return AudioWorkerApp.PACKAGE
+        return __class__.PACKAGE
 
     @staticmethod
     def device_shell(device=None, serialno=None, cmd=None, tolog=True):
@@ -39,9 +43,9 @@ class AudioWorkerApp(AppInterface):
     @staticmethod
     def is_alive(device=None, serialno=None, tolog=False):
         ack_funcs = [
-            AudioWorkerApp.playback_info,
-            AudioWorkerApp.record_info,
-            AudioWorkerApp.voip_info
+            __class__.playback_info,
+            __class__.record_info,
+            __class__.voip_info
         ]
 
         for func in ack_funcs:
@@ -52,22 +56,13 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def relaunch_app(device=None, serialno=None):
-        AudioWorkerApp.stop_app(device, serialno)
+        __class__.stop_app(device, serialno)
         time.sleep(2)
-        AudioWorkerApp.launch_app(device, serialno)
-
-    @staticmethod
-    def launch_app(device=None, serialno=None):
-        component = AudioWorkerApp.PACKAGE + "/" + AudioWorkerApp.MAINACTIVITY
-        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am start -n {}".format(component))
-
-    @staticmethod
-    def stop_app(device=None, serialno=None):
-        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd="am force-stop {}".format(AudioWorkerApp.PACKAGE))
+        __class__.launch_app(device, serialno)
 
     @staticmethod
     def send_intent(device, serialno, name, configs={}, tolog=True):
-        cmd_arr = [AudioWorkerApp.INTENT_PREFIX, name]
+        cmd_arr = [__class__.INTENT_PREFIX, name]
         for key, value in configs.items():
             if type(value) is float:
                 cmd_arr += ["--ef", key]
@@ -77,11 +72,11 @@ class AudioWorkerApp(AppInterface):
                 cmd_arr += ["--es", key]
             cmd_arr.append(str(value))
 
-        AudioWorkerApp.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
+        __class__.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
 
     @staticmethod
     def playback_nonoffload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.start"
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "non-offload",
             "target-freq": freq,
@@ -92,11 +87,11 @@ class AudioWorkerApp(AppInterface):
             "pcm-bit-width": bit_depth,
             "low-latency-mode": low_latency_mode
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def playback_offload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.start"
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "offload",
             "target-freq": freq,
@@ -106,19 +101,19 @@ class AudioWorkerApp(AppInterface):
             "amplitude": amp,
             "pcm-bit-width": bit_depth
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def _common_info(device=None, serialno=None, ctype=None, controller=None, tolog=False):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
         filename = "{}-info.txt".format(datetime.datetime.now())
         filename = "-".join(filename.split())
-        filepath = "{}/{}/{}".format(AudioWorkerApp.DATA_FOLDER, controller, filename)
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
+        filepath = "{}/{}/{}".format(__class__.DATA_FOLDER, controller, filename)
+        __class__.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
 
         retry = 10
         while retry > 0:
-            out, err = AudioWorkerApp.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
+            out, err = __class__.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
             if len(out) == 0:
                 time.sleep(0.5)
                 retry -= 1
@@ -126,7 +121,7 @@ class AudioWorkerApp(AppInterface):
             break
 
         out = out.splitlines()
-        AudioWorkerApp.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=tolog)
+        __class__.device_shell(None, serialno, cmd="rm {}".format(filepath), tolog=tolog)
         if len(out) == 0:
             return None
         elif len(out) == 1:
@@ -146,12 +141,12 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def playback_info(device=None, serialno=None, tolog=False):
-        return AudioWorkerApp._common_info(device, serialno, "playback", "PlaybackController", tolog=tolog)
+        return __class__._common_info(device, serialno, "playback", "PlaybackController", tolog=tolog)
 
     @staticmethod
     def playback_stop(device=None, serialno=None, tolog=False):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "playback.stop"
-        info = AudioWorkerApp.playback_info(device, serialno, tolog)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.stop"
+        info = __class__.playback_info(device, serialno, tolog)
         if not info:
             return
 
@@ -161,11 +156,11 @@ class AudioWorkerApp(AppInterface):
                     "type": pbtype,
                     "playback-id": int(pbid)
                 }
-                AudioWorkerApp.send_intent(device, serialno, name, configs)
+                __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def record_info(device=None, serialno=None, tolog=False):
-        info = AudioWorkerApp._common_info(device, serialno, "record", "RecordController", tolog=tolog)
+        info = __class__._common_info(device, serialno, "record", "RecordController", tolog=tolog)
         if info == None:
             return None
 
@@ -182,23 +177,23 @@ class AudioWorkerApp(AppInterface):
         try:
             params = json.dumps(json.dumps(params))
         except:
-            AudioWorkerApp.log("params cannot be converted to json string")
+            __class__.log("params cannot be converted to json string")
             return
 
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.register".format(prefix)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.register".format(prefix)
         configs = {
             "class": dclass,
             "params": params
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def tx_detector_unregister(prefix, device, serialno, chandle):
         if not chandle:
             return
 
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.unregister".format(prefix)
-        AudioWorkerApp.send_intent(device, serialno, name, {"class-handle": chandle})
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.unregister".format(prefix)
+        __class__.send_intent(device, serialno, name, {"class-handle": chandle})
 
     @staticmethod
     def tx_detector_clear(prefix, device, serialno, info_func):
@@ -207,7 +202,7 @@ class AudioWorkerApp(AppInterface):
             return
 
         for chandle in info[1].keys():
-            AudioWorkerApp.tx_detector_unregister(prefix, device, serialno, chandle)
+            __class__.tx_detector_unregister(prefix, device, serialno, chandle)
 
     @staticmethod
     def tx_detector_set_params(prefix, device, serialno, chandle, params):
@@ -216,64 +211,64 @@ class AudioWorkerApp(AppInterface):
         try:
             params = json.dumps(json.dumps(params))
         except:
-            AudioWorkerApp.log("params cannot be converted to json string")
+            __class__.log("params cannot be converted to json string")
             return
 
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "{}.detect.setparams".format(prefix)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.setparams".format(prefix)
         configs = {
             "class-handle": chandle,
             "params": params
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, dump_buffer_ms=0):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.start"
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
             "sampling-freq": fs,
             "num-channels": nch,
             "pcm-bit-width": bit_depth,
             "dump-buffer-ms": dump_buffer_ms
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def record_stop(device=None, serialno=None):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.stop"
-        AudioWorkerApp.send_intent(device, serialno, name)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.stop"
+        __class__.send_intent(device, serialno, name)
 
     @staticmethod
     def record_dump(device=None, serialno=None, path=None):
         if not path:
             return
 
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "record.dump"
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": path})
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.dump"
+        __class__.send_intent(device, serialno, name, {"filename": path})
 
     @staticmethod
     def record_detector_register(device=None, serialno=None, dclass=None, params={}):
-        AudioWorkerApp.tx_detector_register("record", device, serialno, dclass, params)
+        __class__.tx_detector_register("record", device, serialno, dclass, params)
 
     @staticmethod
     def record_detector_unregister(device=None, serialno=None, chandle=None):
-        AudioWorkerApp.tx_detector_unregister("record", device, serialno, chandle)
+        __class__.tx_detector_unregister("record", device, serialno, chandle)
 
     @staticmethod
     def record_detector_clear(device=None, serialno=None):
-        AudioWorkerApp.tx_detector_clear("record", device, serialno, AudioWorkerApp.record_info)
+        __class__.tx_detector_clear("record", device, serialno, __class__.record_info)
 
     @staticmethod
     def record_detector_set_params(device=None, serialno=None, chandle=None, params={}):
-        AudioWorkerApp.tx_detector_set_params("record", device, serialno, chandle, params)
+        __class__.tx_detector_set_params("record", device, serialno, chandle, params)
 
     @staticmethod
     def voip_info(device=None, serialno=None, tolog=False):
-        return AudioWorkerApp._common_info(device, serialno, "voip", "VoIPController", tolog=tolog)
+        return __class__._common_info(device, serialno, "voip", "VoIPController", tolog=tolog)
 
     @staticmethod
     def voip_start(device=None, serialno=None, rxfreq=440., rxamp=0.6,
         rxfs=8000, txfs=8000, rxnch=1, txnch=1, rxbit_depth=16, txbit_depth=16, dump_buffer_ms=0):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.start"
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.start"
         configs = {
             "rx-target-freq": rxfreq,
             "rx-amplitude": rxamp,
@@ -285,12 +280,12 @@ class AudioWorkerApp(AppInterface):
             "tx-pcm-bit-width": txbit_depth,
             "tx-dump-buffer-ms": dump_buffer_ms
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def voip_stop(device=None, serialno=None):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.stop"
-        AudioWorkerApp.send_intent(device, serialno, name)
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.stop"
+        __class__.send_intent(device, serialno, name)
 
     @staticmethod
     def voip_use_speaker(device=None, serialno=None, use=True):
@@ -298,61 +293,61 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def voip_use_receiver(device=None, serialno=None):
-        AudioWorkerApp.voip_use_speaker(device, serialno, use=False)
+        __class__.voip_use_speaker(device, serialno, use=False)
 
     @staticmethod
     def voip_change_configs(device=None, serialno=None, rxfreq=-1, rxamp=-1):
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.config"
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.config"
         configs = {
             "rx-target-freq": rxfreq,
             "rx-amplitude": rxamp
         }
-        AudioWorkerApp.send_intent(device, serialno, name, configs)
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def voip_mute_output(device=None, serialno=None):
-        AudioWorkerApp.voip_change_configs(device, serialno, rxamp=0)
+        __class__.voip_change_configs(device, serialno, rxamp=0)
 
     @staticmethod
     def voip_tx_dump(device=None, serialno=None, path=None, tolog=False):
         if not path:
             return
 
-        dpath = "{}/VoIPController".format(AudioWorkerApp.DATA_FOLDER)
-        out, _ = AudioWorkerApp.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
+        dpath = "{}/VoIPController".format(__class__.DATA_FOLDER)
+        out, _ = __class__.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
         if len(out.split()) > 0:
-            AudioWorkerApp.device_shell(device, serialno, cmd="rm -f {}/*".format(dpath), tolog=tolog)
+            __class__.device_shell(device, serialno, cmd="rm -f {}/*".format(dpath), tolog=tolog)
 
-        name = AudioWorkerApp.AUDIOWORKER_INTENT_PREFIX + "voip.tx.dump"
-        AudioWorkerApp.send_intent(device, serialno, name, {"filename": "dump.wav"})
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.tx.dump"
+        __class__.send_intent(device, serialno, name, {"filename": "dump.wav"})
 
         interval = 0.2
         timeout = 3 / interval
         while timeout > 0:
-            out, _ = AudioWorkerApp.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
+            out, _ = __class__.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
             if "dump.wav" in out.split():
                 break
             timeout -= 1
             time.sleep(interval)
 
         Adb.execute(cmd=["pull", "{}/dump.wav".format(dpath), path], serialno=serialno, tolog=tolog)
-        AudioWorkerApp.device_shell(device, serialno, cmd="rm -f {}/dump.wav".format(dpath), tolog=tolog)
+        __class__.device_shell(device, serialno, cmd="rm -f {}/dump.wav".format(dpath), tolog=tolog)
 
     @staticmethod
     def voip_detector_register(device=None, serialno=None, dclass=None, params={}):
-        AudioWorkerApp.tx_detector_register("voip", device, serialno, dclass, params)
+        __class__.tx_detector_register("voip", device, serialno, dclass, params)
 
     @staticmethod
     def voip_detector_unregister(device=None, serialno=None, chandle=None):
-        AudioWorkerApp.tx_detector_unregister("voip", device, serialno, chandle)
+        __class__.tx_detector_unregister("voip", device, serialno, chandle)
 
     @staticmethod
     def voip_detector_clear(device=None, serialno=None):
-        AudioWorkerApp.tx_detector_clear("voip", device, serialno, AudioWorkerApp.voip_info)
+        __class__.tx_detector_clear("voip", device, serialno, __class__.voip_info)
 
     @staticmethod
     def voip_detector_set_params(device=None, serialno=None, chandle=None, params={}):
-        AudioWorkerApp.tx_detector_set_params("voip", device, serialno, chandle, params)
+        __class__.tx_detector_set_params("voip", device, serialno, chandle, params)
 
     @staticmethod
     def print_log(device=None, serialno=None, severity="i", tag="AudioWorkerAPIs", log=None):
