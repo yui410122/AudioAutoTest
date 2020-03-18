@@ -50,7 +50,7 @@ class LogcatOutputThread(threading.Thread):
 
             line = self.proc.stdout.readline()
             if sys.version_info.major > 2:
-                line = line.decode("utf-8")
+                line = line.decode("utf-8", errors="ignore")
             self._handle_logcat_msg(line)
 
         try:
