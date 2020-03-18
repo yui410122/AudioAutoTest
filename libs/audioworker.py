@@ -266,7 +266,7 @@ class AudioWorkerApp(AppInterface):
         return __class__._common_info(device, serialno, "voip", "VoIPController", tolog=tolog)
 
     @staticmethod
-    def voip_start(device=None, serialno=None, rxfreq=440., rxamp=0.6,
+    def voip_start(device=None, serialno=None, rxfreq=440., rxamp=0.6, rxspkr=False,
         rxfs=8000, txfs=8000, rxnch=1, txnch=1, rxbit_depth=16, txbit_depth=16, dump_buffer_ms=0):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.start"
         configs = {
@@ -275,6 +275,7 @@ class AudioWorkerApp(AppInterface):
             "rx-sampling-freq": rxfs,
             "rx-num-channels": rxnch,
             "rx-pcm-bit-width": rxbit_depth,
+            "rx-use-spkr": rxspkr,
             "tx-sampling-freq": txfs,
             "tx-num-channels": txnch,
             "tx-pcm-bit-width": txbit_depth,
@@ -289,7 +290,11 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def voip_use_speaker(device=None, serialno=None, use=True):
-        pass
+        name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.config"
+        configs = {
+            "rx-use-spkr": use
+        }
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def voip_use_receiver(device=None, serialno=None):
