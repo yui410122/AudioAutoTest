@@ -1,8 +1,31 @@
 import subprocess
+import threading
+import signal
 from libs.logger import Logger
+
+class AdbScreenRecordingThread(threading.Thread):
+    def __init__(self, serialno):
+        super(AdbScreenRecordingThread, self).__init__()
+        self.serialno = serialno
+        self.daemon = True
+        self.proc = None
+
+    def terminate(self):
+        self.proc.stdin.close()
+        self.proc.terminate()
+        self.proc.wait(timeout=1)
+        super(AdbScreenRecordingThread, self).join(timeout=1)
+
+    def run(self):
+        # shell_cmd = "screenrecord --bit-rate 4000000 /sdcard/screenrecord.mp4"
+        shell_cmd = "screenrecord /sdcard/screenrecord.mp4"
+        cmd = ["adb", "-s", self.serialno, "shell", shell_cmd]
+        Logger.log("AdbScreenRecordingThread", "threadloop is running with the command '{}'".format(cmd))
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 class Adb(object):
     HAS_BEEN_INIT = False
+    SCREEN_RECORDING_THREADS = {}
     TAG = "Adb"
 
     @staticmethod
@@ -14,6 +37,12 @@ class Adb(object):
     def _check_init():
         if not Adb.HAS_BEEN_INIT:
             Adb.init()
+
+    @classmethod
+    def _log(child, msg, tolog):
+        if not tolog:
+            return
+        Logger.log(child.TAG, msg)
 
     @classmethod
     def execute(child, cmd, serialno=None, tolog=True):
@@ -30,8 +59,7 @@ class Adb(object):
             cmd_prefix += ["-s", serialno]
 
         cmd = cmd_prefix + cmd
-        if tolog:
-            Logger.log(child.TAG, "exec: {}".format(cmd))
+        child._log("exec: {}".format(cmd), tolog)
         out, err =  subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
 
         if not isinstance(out, str):
@@ -75,18 +103,52 @@ class Adb(object):
 
     @classmethod
     def device_lock(child, serialno=None, tolog=True):
-        if tolog:
-            Logger.log(child.TAG, "lock the screen")
+        child._log("lock the screen", tolog)
         child.device_stayon(serialno, tolog, on=True)
         child.device_keyevent_power(serialno, tolog)
         child.device_stayon(serialno, tolog, on=False)
 
     @classmethod
     def device_unlock(child, serialno=None, tolog=True):
-        if tolog:
-            Logger.log(child.TAG, "unlock the screen")
+        child._log("unlock the screen", tolog)
         child.device_stayon(serialno, tolog, on=True)
         child.device_keyevent_menu(serialno, tolog)
+
+    @staticmethod
+    def screen_recording_start(serialno=None, tolog=True):
+        if not serialno:
+            devices = Adb.get_devices()
+            if len(devices) == 0:
+                return False
+            serialno = devices[0]
+
+        if serialno in Adb.SCREEN_RECORDING_THREADS:
+            return False
+
+        th = AdbScreenRecordingThread(serialno)
+        th.start()
+        Adb.SCREEN_RECORDING_THREADS[serialno] = th
+        return True
+
+    @staticmethod
+    def screen_recording_stop(pullto, serialno=None, tolog=True):
+        if not serialno:
+            devices = Adb.get_devices()
+            if len(devices) == 0:
+                return False
+            serialno = devices[0]
+
+        if not serialno in Adb.SCREEN_RECORDING_THREADS:
+            return False
+
+        th = Adb.SCREEN_RECORDING_THREADS[serialno]
+        th.terminate()
+        del Adb.SCREEN_RECORDING_THREADS[serialno]
+
+        time.sleep(1)
+        if pullto:
+            Adb.execute(["pull", "/sdcard/screenrecord.mp4", pullto], serialno=serialno)
+        return True
 
 try:
     import functools
