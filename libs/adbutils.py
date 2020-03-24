@@ -91,7 +91,7 @@ class Adb(object):
     def device_keyevent(child, serialno=None, tolog=True, keyevent=None):
         if not keyevent:
             return
-        return child.execute(["shell", "input", "keyevent", str(keyevent)])
+        return child.execute(["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_keyevent_menu(child, serialno=None, tolog=True):
