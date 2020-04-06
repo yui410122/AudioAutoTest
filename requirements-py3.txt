@@ -1,8 +1,9 @@
-androidviewclient3==15.4.0
+androidviewclient==20.0.0b3
 audioread==2.1.8
 certifi==2019.9.11
 cffi==1.13.2
 chardet==3.0.4
+culebratester-client==2.0.11
 cycler==0.10.0
 decorator==4.4.1
 idna==2.8
