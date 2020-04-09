@@ -45,12 +45,12 @@ class Adb(object):
         Logger.log(child.TAG, msg)
 
     @classmethod
-    def execute(child, cmd, serialno=None, tolog=True):
+    def execute(child, cmd, serialno=None, tolog=True, retbyte=False):
         child._check_init()
-        return child._execute(cmd, serialno, tolog)
+        return child._execute(cmd, serialno, tolog, retbyte)
 
     @classmethod
-    def _execute(child, cmd, serialno, tolog=True):
+    def _execute(child, cmd, serialno, tolog=True, retbyte=False):
         if not isinstance(cmd, list):
             cmd = [cmd]
 
@@ -62,10 +62,16 @@ class Adb(object):
         child._log("exec: {}".format(cmd), tolog)
         out, err =  subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
 
-        if not isinstance(out, str):
-            out = out.decode("utf-8")
-        if not isinstance(err, str):
-            err = err.decode("utf-8")
+        if not isinstance(out, str) and not retbyte:
+            try:
+                out = out.decode("utf-8")
+            except:
+                pass
+        if not isinstance(err, str) and not retbyte:
+            try:
+                err = err.decode("utf-8")
+            except:
+                pass
 
         return out, err
 
