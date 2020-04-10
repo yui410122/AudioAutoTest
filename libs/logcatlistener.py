@@ -7,6 +7,7 @@ import platform
 
 from libs.logger import Logger
 from libs.adbutils import Adb
+from libs.timeutils import Timer
 
 try:
     import queue
@@ -23,6 +24,7 @@ class LogcatOutputThread(threading.Thread):
         self.stoprequest = threading.Event()
         self.proc = None
         self.buffername = None if buffername == "system" else buffername
+        self.lasttime_update_timer = Timer(period_ms=1)
 
     def register_event(self, logcat_event):
         self.listeners[logcat_event.pattern] = logcat_event
@@ -43,16 +45,24 @@ class LogcatOutputThread(threading.Thread):
         cmd = ["adb", "-s", self.serialno, "logcat"]
         cmd = cmd + ["-b", self.buffername] if self.buffername else cmd
         Logger.log("LogcatOutputThread", "threadloop is listening with the command '{}'".format(cmd))
-        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, preexec_fn=preexec_fn)
+        self.proc = subprocess.Popen(cmd,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=preexec_fn)
         while not self.stoprequest.isSet():
             if self.proc.poll() != None:
                 break
 
             line = self.proc.stdout.readline()
+
             if sys.version_info.major > 2:
                 line = line.decode("utf-8", errors="ignore")
+
+            if not self.lasttime_update_timer.is_alive(): # start for the first time
+                self.lasttime_update_timer.start()
+            else: # reset for the followings
+                self.lasttime_update_timer.reset()
             self._handle_logcat_msg(line)
 
+        self.lasttime_update_timer.join()
         try:
             if platform.system() != "Windows":
                 os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
@@ -78,6 +88,8 @@ class LogcatListener(object):
 
         for threadname, th in LogcatListener.WORK_THREADS.items():
             Logger.log("LogcatListener::dump", "thread[{}]".format(threadname))
+            Logger.log("LogcatListener::dump",
+                "    - Last time processing: {} ms ago".format(th.lasttime_update_timer.get_time()))
             for event_pattern in th.listeners.keys():
                 Logger.log("LogcatListener::dump", "    - pattern '{}'".format(event_pattern))
 

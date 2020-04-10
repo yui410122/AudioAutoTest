@@ -1,4 +1,58 @@
 import datetime
+import time
+import threading
+
+class Timer(threading.Thread):
+    def __init__(self, period_ms=1):
+        super(Timer, self).__init__()
+        self.timer = TicToc()
+        self.running = False
+        self._timer_lock = threading.Lock()
+        self.time_ms = 0
+        self._time_ms_lock = threading.Lock()
+        self.stoprequest = threading.Event()
+        self.period_ms = period_ms
+        self.daemon = True
+
+    def _update(self):
+        with self._time_ms_lock:
+            self.time_ms += self.timer.toc()
+
+    def get_time(self):
+        with self._time_ms_lock:
+            time_ms = self.time_ms
+
+        return time_ms
+
+    def reset(self):
+        with self._time_ms_lock:
+            self.time_ms = 0
+
+    def pause(self):
+        with self._timer_lock:
+            self.running = False
+            self.timer = TicToc()
+
+    def resume(self):
+        with self._timer_lock:
+            self.running = True
+
+    def join(self):
+        self.stoprequest.set()
+        super(Timer, self).join(timeout=10)
+
+    def run(self):
+        self.resume()
+        while not self.stoprequest.isSet():
+            with self._timer_lock:
+                running = self.running
+
+            if not running:
+                time.sleep(self.period_ms / 1000.)
+                continue
+
+            self._update()
+            time.sleep(self.period_ms / 1000.)
 
 def TicTocGenerator():
     tf = datetime.datetime.now()
