@@ -54,12 +54,13 @@ class AudioFunction(object):
         AudioFunction.COMMAND.stop()
 
     @staticmethod
-    def start_record(cb):
+    def start_record(cb, cmd=None):
         if not AudioFunction.HAS_BEEN_INIT:
             raise RuntimeError("The AudioFunction should be initialized before calling APIs")
         AudioFunction.COMMAND.stop()
         AudioFunction.AUDIO_CONFIG.cb = cb
-        AudioFunction.COMMAND.cmd = ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=50, nfft=2048)
+        AudioFunction.COMMAND.cmd = cmd if cmd is not None else \
+            ToneDetectCommand(config=AudioFunction.AUDIO_CONFIG, framemillis=50, nfft=2048)
         AudioFunction.WORK_THREAD.push(AudioFunction.COMMAND.cmd)
 
 class ToneDetectorThread(threading.Thread):
