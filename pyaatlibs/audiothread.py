@@ -3,7 +3,7 @@ import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
 
-from libs.signalanalyzer import find_peaks
+from pyaatlibs.signalanalyzer import find_peaks
 
 try:
     import queue

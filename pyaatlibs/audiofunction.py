@@ -4,10 +4,10 @@ import time
 import os
 import datetime
 
-from libs.audiothread import *
-from libs.adbutils import Adb
-from libs.logger import Logger
-from libs.timeutils import TimeUtils
+from pyaatlibs.audiothread import *
+from pyaatlibs.adbutils import Adb
+from pyaatlibs.logger import Logger
+from pyaatlibs.timeutils import TimeUtils
 
 # Initialization of used variables
 class CommandHandler(object):

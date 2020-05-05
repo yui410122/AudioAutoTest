@@ -3,13 +3,12 @@ import subprocess
 import json
 import datetime
 import time
-from libs import get_path
-from libs.adbutils import Adb
-from libs.appinterface import AppInterface
+from pyaatlibs.adbutils import Adb
+from pyaatlibs.appinterface import AppInterface
 
 class AudioWorkerApp(AppInterface):
     TAG = "AudioWorkerApp"
-    APK_PATH = get_path("apk", "debug", "audioworker.apk")
+    APK_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "apk", "audioworker.apk")
     INTENT_PREFIX = "am broadcast -a"
     AUDIOWORKER_INTENT_PREFIX = "com.google.audioworker.intent."
 
@@ -361,10 +360,10 @@ class AudioWorkerApp(AppInterface):
 
 import threading
 import time
-from libs.timeutils import TicToc, TimeUtils
-from libs.audiofunction import ToneDetectorThread, ToneDetector
-from libs.aatapp import AATAppToneDetectorThread
-from libs.logger import Logger
+from pyaatlibs.timeutils import TicToc, TimeUtils
+from pyaatlibs.audiofunction import ToneDetectorThread, ToneDetector
+from pyaatlibs.aatapp import AATAppToneDetectorThread
+from pyaatlibs.logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
     def __init__(self, serialno, target_freq, callback,

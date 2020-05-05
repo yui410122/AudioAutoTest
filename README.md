@@ -2,78 +2,27 @@
 ## Description
 This is a auto-testing framework of audio functions for Android devices.
 
-## Repository
-```
-AudioAutoTest/
-├── apk
-│   └── debug
-│       ├── audiofunctionsdemo.apk
-│       └── output.json
-├── audiofiles
-│   ├── 250Hz_wav.wav
-│   ├── 440Hz_mp3.mp3
-│   ├── 440Hz_wav.wav
-│   ├── 442Hz_wav_glitched.wav
-│   ├── 442Hz_wav_popped.wav
-│   ├── 442Hz_wav.wav
-│   └── song1.mp3
-├── libs
-│   ├── aatapp.py
-│   ├── activitystatemachine.py
-│   ├── adbutils.py
-│   ├── audiofunction.py
-│   ├── audiosignalframelogger.py
-│   ├── audiothread.py
-│   ├── googlemusichelper.py
-│   ├── __init__.py
-│   ├── logcatlistener.py
-│   ├── logger.py
-│   ├── README.md
-│   ├── signalanalyzer.py
-│   ├── signalmatcher.py
-│   ├── tictoc.py
-│   └── trials.py
-├── README.md
-├── requirements.txt
-├── scripts
-│   ├── basic_test.py
-│   ├── example.py
-│   ├── playback_demo.py
-│   └── ssr_test.py
-└── tools-for-dev
-    ├── dump-screen.py
-    ├── gendefect.py
-    ├── genwave.py
-    ├── viewclient-example.py
-    └── visaudio.py
-```
-
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
 
 ## Installation
 ### Requirements
 - pip
-- Python 2.7 (3.x is not supported in `ViewClient`)
+- Python 3.7+
 - virtualenv
 
 #### Create a virtual environment
 ```
 {WORK_DIR}$ mkdir venv
-{WORK_DIR}$ virtualenv -p python2 venv/py2
-Running virtualenv with interpreter /usr/bin/python2
-New python executable in {WORK_DIR}/venv/py2/bin/python2
-Also creating executable in {WORK_DIR}/venv/py2/bin/python
+{WORK_DIR}$ virtualenv -p python3 venv/py3
+Running virtualenv with interpreter /usr/bin/python3
+New python executable in {WORK_DIR}/venv/py3/bin/python
+Also creating executable in {WORK_DIR}/venv/py3/bin/python
 Installing setuptools, pip, wheel...done.
-{WORK_DIR}$ source venv/py2/bin/activate
-(py2) {WORK_DIR}$
+{WORK_DIR}$ source venv/py3/bin/activate
+(py3) {WORK_DIR}$
 ```
 
 #### The dependencies should be installed with a command
 ```
-(py2) {WORK_DIR}$ pip install -r requirements.txt
-```
-
-#### Tested the example scripts
-```
-(py2) {WORK_DIR}$ python scripts/example.py
+(py2) {WORK_DIR}$ pip install -r requirements-py3.txt
 ```

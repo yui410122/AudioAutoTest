@@ -5,9 +5,9 @@ import os
 import signal
 import platform
 
-from libs.logger import Logger
-from libs.adbutils import Adb
-from libs.timeutils import Timer
+from pyaatlibs.logger import Logger
+from pyaatlibs.adbutils import Adb
+from pyaatlibs.timeutils import Timer
 
 try:
     import queue

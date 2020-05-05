@@ -81,9 +81,9 @@ class AATApp(object):
 
 import threading
 import time
-from libs.audiofunction import ToneDetectorThread, ToneDetector
-from libs.logger import Logger
-from libs.adbutils import Adb
+from pyaatlibs.audiofunction import ToneDetectorThread, ToneDetector
+from pyaatlibs.logger import Logger
+from pyaatlibs.adbutils import Adb
 
 class AATAppToneDetectorThread(ToneDetectorThread):
     def __init__(self, serialno, target_freq, callback):
@@ -176,7 +176,7 @@ class AATAppToneDetectorThread(ToneDetectorThread):
         #     ["shell", "am", "broadcast", "-a", "audio.htc.com.intent.print.properties.enable", "--ez", "v", "1"], \
         #     serialno=self.serialno)
 
-        from libs.timeutils import TicToc, TimeUtils
+        from pyaatlibs.timeutils import TicToc, TimeUtils
         freq_cb_tictoc = TicToc()
         adb_tictoc = TicToc()
 

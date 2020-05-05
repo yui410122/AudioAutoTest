@@ -1,6 +1,6 @@
 import datetime
 import json
-from libs.timeutils import TimeUtils
+from pyaatlibs.timeutils import TimeUtils
 
 try:
     import functools

@@ -1,7 +1,7 @@
 import subprocess
 import threading
 import signal
-from libs.logger import Logger
+from pyaatlibs.logger import Logger
 
 class AdbScreenRecordingThread(threading.Thread):
     def __init__(self, serialno):

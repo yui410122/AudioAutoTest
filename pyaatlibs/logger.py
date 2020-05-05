@@ -2,7 +2,7 @@ import threading
 import datetime
 import os
 
-from libs import ROOT_DIR, SEP
+from pyaatlibs import ROOT_DIR, SEP
 
 try:
     import queue

@@ -5,7 +5,7 @@ import struct
 import json
 import numpy as np
 
-from libs import SEP
+from pyaatlibs import SEP
 
 class AudioSignalFrameLogger(object):
     INFO_FILE = "info.json"

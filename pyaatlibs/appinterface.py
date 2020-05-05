@@ -1,5 +1,5 @@
-from libs.adbutils import Adb
-from libs.logger import Logger
+from pyaatlibs.adbutils import Adb
+from pyaatlibs.logger import Logger
 
 class AppInterface(object):
     @classmethod
