@@ -18,11 +18,11 @@ packages = [package for package in packages if package.startswith("pyaat")]
 install_reqs = parse_requirements("requirements-py3.txt")
 
 setuptools.setup(
-    name='python-audio-autotest',  
-    version='1.0',
+    name="python-audio-autotest",
+    version="1.0.2",
     scripts=[] ,
     author="Hao-Wei Lee",
-    author_email="hwinnerlee@gmail.com",
+    author_email="hwinnerlee@gmail.com, hwlee@google.com",
     description="This is a auto-testing framework of audio functions for Android devices.",
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -3,12 +3,17 @@ import subprocess
 import json
 import datetime
 import time
+
+from pyaatlibs import ROOT_DIR
 from pyaatlibs.adbutils import Adb
 from pyaatlibs.appinterface import AppInterface
 
 class AudioWorkerApp(AppInterface):
     TAG = "AudioWorkerApp"
-    APK_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "apk", "audioworker.apk")
+    APK_PATHS = [
+        os.path.join(ROOT_DIR, "apk", "debug", "audioworker.apk"),
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "apk", "audioworker.apk")
+    ]
     INTENT_PREFIX = "am broadcast -a"
     AUDIOWORKER_INTENT_PREFIX = "com.google.audioworker.intent."
 
@@ -19,7 +24,11 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def get_apk_path():
-        return __class__.APK_PATH
+        for path in __class__.APK_PATHS:
+            if os.path.exists(path):
+                return path
+
+        raise(RuntimeError("no apk file is found."))
 
     @staticmethod
     def get_launch_component():
