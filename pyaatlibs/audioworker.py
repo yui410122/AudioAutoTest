@@ -114,8 +114,9 @@ class AudioWorkerApp(AppInterface):
     @staticmethod
     def _common_info(device=None, serialno=None, ctype=None, controller=None, tolog=False):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
-        filename = "{}-info.txt".format(datetime.datetime.now())
-        filename = "-".join(filename.split())
+        ts = datetime.datetime.timestamp(datetime.datetime.now())
+        ts = int(ts * 1000)
+        filename = "{}-info.txt".format(ts)
         filepath = "{}/{}/{}".format(__class__.DATA_FOLDER, controller, filename)
         __class__.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
 
