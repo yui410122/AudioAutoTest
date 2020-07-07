@@ -74,8 +74,9 @@ class AudioWorkerApp(AppInterface):
         for key, value in configs.items():
             if type(value) is float:
                 cmd_arr += ["--ef", key]
-            elif type(value) is int:
+            elif type(value) is int or type(value) is bool:
                 cmd_arr += ["--ei", key]
+                value = int(value)
             else:
                 cmd_arr += ["--es", key]
             cmd_arr.append(str(value))
