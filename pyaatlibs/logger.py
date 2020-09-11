@@ -168,7 +168,7 @@ class Logger(object):
             return
 
         if level != Logger.Verbosity.NONE:
-            tag = "{}/{}".format(tag, level.name[0])
+            tag = "{}/{}".format(level.name[0], tag)
 
         if not Logger.HAS_BEEN_INIT:
             print("[{}] {}: {}".format(datetime.datetime.now(), tag, msg))

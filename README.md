@@ -5,7 +5,12 @@ This is a auto-testing framework of audio functions for Android devices.
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
 
 ## Release Note
-### v1.2.0
+### v1.2
+#### v1.2.1
+- change log tag with verbosity level of `pyaat.logger`
+- correct README
+
+#### v1.2.0
 - add verbosity level control of `pyaatlibs.logger`
 - add `wait_for_device` API of `pyaatlibs.adbutils`
 
@@ -29,5 +34,5 @@ Installing setuptools, pip, wheel...done.
 
 #### The dependencies should be installed with a command
 ```
-(py2) {WORK_DIR}$ pip install -r requirements-py3.txt
+(py3) {WORK_DIR}$ pip install -r requirements-py3.txt
 ```
