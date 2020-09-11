@@ -1,6 +1,7 @@
 import threading
 import datetime
 import os
+import enum
 
 from pyaatlibs import ROOT_DIR, SEP
 
@@ -115,6 +116,15 @@ class Logger(object):
     WORK_THREAD = None
     HAS_BEEN_INIT = False
 
+    class Verbosity(enum.IntEnum):
+        NONE = enum.auto()
+        ERROR = enum.auto()
+        WARN = enum.auto()
+        INFO = enum.auto()
+        DEBUG = enum.auto()
+
+    VERBOSITY_LEVEL = Verbosity.NONE
+
     class Mode(object):
         STDOUT = 1
         FILE = 2
@@ -150,7 +160,16 @@ class Logger(object):
         Logger.HAS_BEEN_INIT = False
 
     @staticmethod
-    def log(tag, msg):
+    def log(tag=None, msg=None, level=Verbosity.NONE):
+        if not tag or not msg:
+            raise(ValueError("no tag or msg argument for Logger.log"))
+
+        if level > Logger.VERBOSITY_LEVEL:
+            return
+
+        if level != Logger.Verbosity.NONE:
+            tag = "{}/{}".format(tag, level.name[0])
+
         if not Logger.HAS_BEEN_INIT:
             print("[{}] {}: {}".format(datetime.datetime.now(), tag, msg))
             return

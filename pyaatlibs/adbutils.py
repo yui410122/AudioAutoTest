@@ -84,6 +84,12 @@ class Adb(object):
         return devices
 
     @classmethod
+    def wait_for_device(child, serialno, timeoutsec, tolog=True):
+        while not serialno in child.get_devices(tolog=tolog) and timeoutsec > 0:
+            time.sleep(1)
+            timeoutsec -= 1
+
+    @classmethod
     def device_fingerprint(child, serialno=None, tolog=True):
         return child.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
 
