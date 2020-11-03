@@ -136,7 +136,7 @@ class ToneDetectorForServerThread(ToneDetectorThread):
 
 
 class ToneDetector(object):
-    WORK_THREAD = None
+    WORK_THREADS = None
 
     class Event(object):
         TONE_DETECTED = "tone detected"
@@ -144,20 +144,34 @@ class ToneDetector(object):
 
     @staticmethod
     def start_listen(target_freq, cb, serialno=None, dclass=None, params={}):
+        if ToneDetector.WORK_THREADS is None:
+            ToneDetector.WORK_THREADS = {}
+
+        th = None
         if serialno and dclass:
-            ToneDetector.WORK_THREAD = dclass(serialno=serialno, target_freq=target_freq, callback=cb, **params)
+            th = dclass(serialno=serialno, target_freq=target_freq, callback=cb, **params)
+            ToneDetector.WORK_THREADS["{}Hz".format(target_freq)] = th
         else:
-            ToneDetector.WORK_THREAD = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
-        ToneDetector.WORK_THREAD.start()
+            th = ToneDetectorForServerThread(target_freq=target_freq, callback=cb)
+            ToneDetector.WORK_THREADS["{}Hz".format(target_freq)] = th
+
+        if th != None:
+            th.start()
 
     @staticmethod
-    def stop_listen():
-        ToneDetector.WORK_THREAD.join()
-        ToneDetector.WORK_THREAD = None
+    def stop_listen(target_freq=None):
+        if target_freq != None and "{}Hz".format(target_freq) in ToneDetector.WORK_THREADS:
+            th_name = "{}Hz".format(target_freq)
+            ToneDetector.WORK_THREADS[th_name].join(timeout=10)
+            del ToneDetector.WORK_THREADS[th_name]
 
-    @staticmethod
-    def set_target_frequency(target_freq):
-        ToneDetector.WORK_THREAD.set_target_frequency(target_freq)
+            if len(ToneDetector.WORK_THREADS) > 0:
+                return
+
+        for th in ToneDetector.WORK_THREADS.values():
+            th.join(timeout=10)
+        ToneDetector.WORK_THREADS.clear()
+        ToneDetector.WORK_THREADS = None
 
 class DetectionStateListener(object):
     class Event(object):

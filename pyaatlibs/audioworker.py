@@ -7,6 +7,7 @@ import time
 from pyaatlibs import ROOT_DIR
 from pyaatlibs.adbutils import Adb
 from pyaatlibs.appinterface import AppInterface
+from pyaatlibs.audiofunction import DetectionStateListener
 
 class AudioWorkerApp(AppInterface):
     TAG = "AudioWorkerApp"
@@ -84,11 +85,11 @@ class AudioWorkerApp(AppInterface):
         __class__.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
 
     @staticmethod
-    def playback_nonoffload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
+    def playback_nonoffload(device=None, serialno=None, freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "non-offload",
-            "target-freq": freq,
+            "target-freqs": ",".join(map(str, freqs)),
             "playback-id": playback_id,
             "sampling-freq": fs,
             "num-channels": nch,
@@ -99,11 +100,11 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def playback_offload(device=None, serialno=None, freq=440., playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
+    def playback_offload(device=None, serialno=None, freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "offload",
-            "target-freq": freq,
+            "target-freqs": ",".join(map(str, freqs)),
             "playback-id": playback_id,
             "sampling-freq": fs,
             "num-channels": nch,
@@ -377,11 +378,13 @@ from pyaatlibs.aatapp import AATAppToneDetectorThread
 from pyaatlibs.logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
-    def __init__(self, serialno, target_freq, callback,
-        detector_reg_func, detector_unreg_func, detector_setparams_func, info_func, parse_detector_func):
+    def __init__(self, serialno, target_freq,
+        detector_reg_func, detector_unreg_func, detector_setparams_func, info_func, parse_detector_func,
+        callback=None, listener=None):
         super(AudioWorkerToneDetectorThread, self).__init__(serialno=serialno, target_freq=target_freq, callback=callback)
         self.serialno = serialno
         self.chandle = None
+        self.listener = listener
         self.detector_reg_func = detector_reg_func
         self.detector_unreg_func = detector_unreg_func
         self.detector_setparams_func = detector_setparams_func
@@ -575,7 +578,10 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                     self.shared_vars["last_event"] = event
                     Logger.log(self.get_tag(),
                         "send_cb({}, {}) on {} Hz".format(t_str, "TONE_DETECTED" if active else "TONE_MISSING", self.target_freq))
-                    self.cb((t_str, event))
+                    if self.cb != None:
+                        self.cb((t_str, event))
+                    if isinstance(self.listener, DetectionStateListener):
+                        self.listener.tone_detected_event_cb((t_str, event))
 
         self.enable_detect_dump(enable=True)
 
