@@ -1,11 +1,6 @@
 import setuptools
 import os
 
-def parse_requirements(filename):
-    """ load requirements from a pip requirements file """
-    lineiter = (line.strip() for line in open(filename))
-    return [line for line in lineiter if line and not line.startswith("#")]
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -15,11 +10,19 @@ os.system("cp ./apk/debug/*.apk ./pyaatlibs/apk/")
 packages = setuptools.find_packages()
 packages = [package for package in packages if package.startswith("pyaat")]
 
-install_reqs = parse_requirements("requirements-py3.txt")
+install_reqs = [
+    "androidviewclient>=20.0.0b3",
+    "numpy>=1.19.4",
+    "scipy>=1.5.4",
+    "scikit-learn>=0.23.2",
+    "matplotlib>=3.3.2",
+    "librosa>=0.8.0",
+    "sounddevice>=0.4.1"
+]
 
 setuptools.setup(
     name="python-audio-autotest",
-    version="1.2.3",
+    version="1.2.4",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",
