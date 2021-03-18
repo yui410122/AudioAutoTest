@@ -325,29 +325,12 @@ class AudioWorkerApp(AppInterface):
         __class__.voip_change_configs(device, serialno, rxamp=0)
 
     @staticmethod
-    def voip_tx_dump(device=None, serialno=None, path=None, tolog=False):
+    def voip_tx_dump(device=None, serialno=None, path=None):
         if not path:
             return
 
-        dpath = "{}/VoIPController".format(__class__.DATA_FOLDER)
-        out, _ = __class__.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
-        if len(out.split()) > 0:
-            __class__.device_shell(device, serialno, cmd="rm -f {}/*".format(dpath), tolog=tolog)
-
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "voip.tx.dump"
-        __class__.send_intent(device, serialno, name, {"filename": "dump.wav"})
-
-        interval = 0.2
-        timeout = 3 / interval
-        while timeout > 0:
-            out, _ = __class__.device_shell(device, serialno, cmd="ls {}".format(dpath), tolog=tolog)
-            if "dump.wav" in out.split():
-                break
-            timeout -= 1
-            time.sleep(interval)
-
-        Adb.execute(cmd=["pull", "{}/dump.wav".format(dpath), path], serialno=serialno, tolog=tolog)
-        __class__.device_shell(device, serialno, cmd="rm -f {}/dump.wav".format(dpath), tolog=tolog)
+        __class__.send_intent(device, serialno, name, {"filename": path})
 
     @staticmethod
     def voip_detector_register(device=None, serialno=None, dclass=None, params={}):

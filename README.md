@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.2
+#### v1.2.5
+- simplify AudioWorkerApp.voip_tx_dump
+
 #### v1.2.1
 - change log tag with verbosity level of `pyaat.logger`
 - correct README

@@ -1,6 +1,10 @@
 import setuptools
 import os
 
+# Note: release commands
+#    $ python3 setup.py bdist_wheel
+#    $ python3 -m twine upload dist/python_audio_autotest-1.2.4-py3-none-any.whl
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -22,7 +26,7 @@ install_reqs = [
 
 setuptools.setup(
     name="python-audio-autotest",
-    version="1.2.4",
+    version="1.2.5",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",
