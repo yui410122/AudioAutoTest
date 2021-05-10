@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.2
+### v1.2.7
+- update audioworker to solve recording underrun.
+
 #### v1.2.5
 - simplify AudioWorkerApp.voip_tx_dump
 
