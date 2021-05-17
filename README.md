@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.2
+### v1.2.8
+- fix granting permissions for Android apps.
+
 ### v1.2.7
 - update audioworker to solve recording underrun.
 

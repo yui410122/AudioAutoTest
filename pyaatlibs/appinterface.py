@@ -57,8 +57,12 @@ class AppInterface(object):
 
         runtime_perm_idx = [idx for idx, line in enumerate(lines) \
             if "runtime permissions:" == line.strip()][0]
-        runtime_perm_idx_end = [idx for idx, line in enumerate(lines[runtime_perm_idx+1:]) \
-            if not "android.permission." in line][0] + runtime_perm_idx + 1
+
+        try:
+            runtime_perm_idx_end = [idx for idx, line in enumerate(lines[runtime_perm_idx+1:]) \
+                if not "android.permission." in line][0] + runtime_perm_idx + 1
+        except IndexError:
+            runtime_perm_idx_end = len(lines)
 
         requested_perms = [line.strip() for line in lines[requested_perm_idx+1:install_perm_idx]]
         install_perms = [line.strip() for line in lines[install_perm_idx+1:install_perm_idx_end]]
