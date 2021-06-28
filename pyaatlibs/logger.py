@@ -164,7 +164,7 @@ class Logger(object):
         if not tag or not msg:
             raise(ValueError("no tag or msg argument for Logger.log"))
 
-        if level > Logger.VERBOSITY_LEVEL:
+        if Logger.VERBOSITY_LEVEL != Logger.Verbosity.NONE and level > Logger.VERBOSITY_LEVEL:
             return
 
         if level != Logger.Verbosity.NONE:
