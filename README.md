@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.2
+### v1.2.11
+- store the running threads instead of directly using the iterator to avoid exceptions.
+
 ### v1.2.10
 - make logger always print messages with default settings.
 

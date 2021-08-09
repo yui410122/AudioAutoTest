@@ -130,7 +130,7 @@ class LogcatListener(object):
 
     @staticmethod
     def finalize():
-        for threadname, th in LogcatListener.WORK_THREADS.items():
+        for th in list(LogcatListener.WORK_THREADS.values()):
             th.join(timeout=10)
 
         LogcatListener.WORK_THREADS.clear()
