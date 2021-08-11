@@ -117,9 +117,14 @@ class LogcatListener(object):
             return
 
         threadname = "{}-{}".format(serialno, buffername)
-        if serialno in LogcatListener.WORK_THREADS.keys():
+        if threadname in LogcatListener.WORK_THREADS.keys():
+            Logger.log(
+                "LogcatListener", "there is an existing running thread ({}).".format(threadname))
             if not flush:
+                Logger.log("LogcatListener", "skip the initialization.")
                 return
+
+            Logger.log("LogcatListener", "terminate the old thread.")
             LogcatListener.WORK_THREADS[threadname].join(timeout=10)
 
         LogcatListener.WORK_THREADS[threadname] = LogcatOutputThread(serialno, buffername)

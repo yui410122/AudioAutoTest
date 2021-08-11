@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.2
+### v1.2.12
+- fix the memory leakage of repeatedly initialization with the same name.
+
 ### v1.2.11
 - store the running threads instead of directly using the iterator to avoid exceptions.
 
