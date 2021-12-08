@@ -5,6 +5,10 @@ This is a auto-testing framework of audio functions for Android devices.
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
 
 ## Release Note
+### v1.3
+### v1.3.0
+- support wifi adb
+
 ### v1.2
 ### v1.2.12
 - fix the memory leakage of repeatedly initialization with the same name.

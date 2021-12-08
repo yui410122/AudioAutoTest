@@ -1,6 +1,7 @@
 import subprocess
 import threading
 import signal
+import re
 from pyaatlibs.logger import Logger
 
 class AdbScreenRecordingThread(threading.Thread):
@@ -26,6 +27,8 @@ class AdbScreenRecordingThread(threading.Thread):
 class Adb(object):
     HAS_BEEN_INIT = False
     SCREEN_RECORDING_THREADS = {}
+    SERIAL_TO_IP_INFO = {}
+
     TAG = "Adb"
 
     @staticmethod
@@ -45,12 +48,19 @@ class Adb(object):
         Logger.log(child.TAG, msg)
 
     @classmethod
-    def execute(child, cmd, serialno=None, tolog=True, retbyte=False):
+    def execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         child._check_init()
-        return child._execute(cmd, serialno, tolog, retbyte)
+
+        if serialno and not serialno in child.get_devices() and serialno in Adb.SERIAL_TO_IP_INFO:
+            ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+            ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
+            child._log("use Wifi adb: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
+            serialno = ip_addr
+
+        return child._execute(cmd, serialno, tolog, retbyte, timeoutsec)
 
     @classmethod
-    def _execute(child, cmd, serialno, tolog=True, retbyte=False):
+    def _execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         if not isinstance(cmd, list):
             cmd = [cmd]
 
@@ -60,7 +70,12 @@ class Adb(object):
 
         cmd = cmd_prefix + cmd
         child._log("exec: {}".format(cmd), tolog)
-        out, err =  subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+        try:
+            out, err =  subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(timeout=timeoutsec)
+        except:
+            out = b""
+            err = b"ADB execution timed out"
 
         if not isinstance(out, str) and not retbyte:
             try:
@@ -84,8 +99,110 @@ class Adb(object):
         return devices
 
     @classmethod
+    def is_device_available(child, serialno, tolog=True):
+        devices = child.get_devices(tolog=tolog)
+        if serialno in devices:
+            return True
+
+        # establish unknown ip
+        for device in devices:
+            m = re.match("(?P<addr>(\\d+\\.?)+)(:(?P<port>\\d+))?$", device)
+            if not m:
+                continue
+
+            ip_info = m.groupdict()
+            if ip_info in Adb.SERIAL_TO_IP_INFO.values():
+                continue
+
+            out, err = child.execute(["shell", "getprop ro.serialno"], serialno=device)
+            if len(err) > 0:
+                continue
+
+            Adb.SERIAL_TO_IP_INFO[out.strip()] = ip_info
+            child._log("update wifi adb device: {}, {}".format(out.strip(), ip_info), tolog)
+
+        if serialno in Adb.SERIAL_TO_IP_INFO and "port" in Adb.SERIAL_TO_IP_INFO[serialno]:
+            ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+            ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
+            if ip_addr in devices:
+                return True
+
+        return False
+
+    @classmethod
+    def is_wifi_adb_supported(child, serialno, tolog=True):
+        devices = child.get_devices(tolog=tolog)
+        if not serialno in devices:
+            child._log("device '{}' not found".format(serialno), tolog)
+            return False
+
+        out, err = child.execute(["shell", "ip addr show wlan0"], serialno=serialno, tolog=tolog)
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
+            return False
+
+        for line in out.splitlines():
+            m = re.match("\\s*inet (?P<addr>(\\d+\\.?)+)/", line)
+            if not m:
+                continue
+
+            Adb.SERIAL_TO_IP_INFO[serialno] = dict(m.groupdict())
+            return True
+
+        if serialno in Adb.SERIAL_TO_IP_INFO:
+            del Adb.SERIAL_TO_IP_INFO[serialno]
+        return False
+
+    @classmethod
+    def enable_wifi_adb(child, serialno, port=5555, tolog=True):
+        if not serialno in Adb.SERIAL_TO_IP_INFO \
+            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
+            child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
+            return False
+
+        _, err = Adb.execute(["tcpip", str(port)], serialno=serialno)
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
+            return False
+
+        ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+        ip_addr = "{}:{}".format(ip_info["addr"], port)
+        out, err = child.execute(["connect", ip_addr])
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
+            return False
+
+        if not re.match("(already )?connected to {}".format(ip_addr), out.strip()):
+            child._log("unexpected output: {}".format(out.strip()), tolog)
+            return False
+
+        ip_info["port"] = str(port)
+        return True
+
+    @classmethod
+    def disable_wifi_adb(child, serialno, tolog=True):
+        if not serialno in Adb.SERIAL_TO_IP_INFO:
+            child._log("Wifi adb is not constructed on device '{}'".format(serialno), tolog)
+            return False
+
+        ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+        ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
+
+        out, err = child.execute(["disconnect", ip_addr])
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
+            return False
+
+        if not re.match("disconnected {}".format(ip_addr), out.strip()):
+            child._log("unexpected output: {}".format(out.strip()), tolog)
+            return False
+
+        del Adb.SERIAL_TO_IP_INFO[serialno]
+        return True
+
+    @classmethod
     def wait_for_device(child, serialno, timeoutsec, tolog=True):
-        while not serialno in child.get_devices(tolog=tolog) and timeoutsec > 0:
+        while not child.is_device_available(serialno=serialno, tolog=tolog) and timeoutsec > 0:
             time.sleep(1)
             timeoutsec -= 1
 
