@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.3
+### v1.3.1
+- add delay between "adb tcpip" and "adb connect"
+
 ### v1.3.0
 - support wifi adb
 

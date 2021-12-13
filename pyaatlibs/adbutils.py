@@ -165,6 +165,8 @@ class Adb(object):
             child._log("got error: {}".format(err.strip()), tolog)
             return False
 
+        time.sleep(1)
+
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], port)
         out, err = child.execute(["connect", ip_addr])
