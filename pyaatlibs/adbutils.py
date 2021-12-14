@@ -51,7 +51,8 @@ class Adb(object):
     def execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         child._check_init()
 
-        if serialno and not serialno in child.get_devices() and serialno in Adb.SERIAL_TO_IP_INFO:
+        if serialno and not serialno in child.get_devices() and \
+            child.is_device_available(serialno=serialno):
             ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
             ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
             child._log("use Wifi adb: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
