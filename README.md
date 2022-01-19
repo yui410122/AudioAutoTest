@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.3
+### v1.3.3
+- add API to get the IP addr used by Wifi adb.
+
 ### v1.3.2
 - fix the logic of whether it's feasible to use wifi adb
 

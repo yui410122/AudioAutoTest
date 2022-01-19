@@ -26,7 +26,7 @@ install_reqs = [
 
 setuptools.setup(
     name="python-audio-autotest",
-    version="1.3.2",
+    version="1.3.3",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",

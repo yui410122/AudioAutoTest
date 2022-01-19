@@ -102,8 +102,6 @@ class Adb(object):
     @classmethod
     def is_device_available(child, serialno, tolog=True):
         devices = child.get_devices(tolog=tolog)
-        if serialno in devices:
-            return True
 
         # establish unknown ip
         for device in devices:
@@ -121,6 +119,9 @@ class Adb(object):
 
             Adb.SERIAL_TO_IP_INFO[out.strip()] = ip_info
             child._log("update wifi adb device: {}, {}".format(out.strip(), ip_info), tolog)
+
+        if serialno in devices:
+            return True
 
         if serialno in Adb.SERIAL_TO_IP_INFO and "port" in Adb.SERIAL_TO_IP_INFO[serialno]:
             ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
@@ -202,6 +203,35 @@ class Adb(object):
 
         del Adb.SERIAL_TO_IP_INFO[serialno]
         return True
+
+    @classmethod
+    def get_wifi_adb_ip_addr(child, serialno, tolog=True):
+        if not serialno in Adb.SERIAL_TO_IP_INFO \
+            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
+            child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
+            return None
+
+        ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+        child._log("get_wifi_adb_ip_addr: ip_info: {}".format(ip_info), tolog)
+        if not "addr" in ip_info or not "port" in ip_info:
+            return None
+
+        ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
+        child._log(
+            "get_wifi_adb_ip_addr: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
+
+        out, err = child.execute(["shell", "getprop ro.serialno"], serialno=ip_addr)
+        out = out.strip()
+        if len(err):
+            child._log("get_wifi_adb_ip_addr: get error: {}".format(err), tolog)
+            return None
+
+        if out != serialno:
+            child._log("get_wifi_adb_ip_addr: the serialno does not match: " \
+                "detected[{}], expected[{}]".format(serialno, out), tolog)
+            return None
+
+        return ip_addr
 
     @classmethod
     def wait_for_device(child, serialno, timeoutsec, tolog=True):
