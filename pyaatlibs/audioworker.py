@@ -3,6 +3,7 @@ import subprocess
 import json
 import datetime
 import time
+from enum import IntEnum, auto
 
 from pyaatlibs import ROOT_DIR
 from pyaatlibs.adbutils import Adb
@@ -22,6 +23,20 @@ class AudioWorkerApp(AppInterface):
     MAINACTIVITY = ".activities.MainActivity"
 
     DATA_FOLDER = "/storage/emulated/0/Google-AudioWorker-data"
+
+    # from Android SDK 32
+    class RecordInputSrc(IntEnum):
+        DEFAULT = 0
+        MIC = auto()
+        VOICE_UPLINK = auto()
+        VOICE_DOWNLINK = auto()
+        VOICE_CALL = auto()
+        CAMCORDER = auto()
+        VOICE_RECOGNITION = auto()
+        VOICE_COMMUNICATION = auto()
+        REMOTE_SUBMIX = auto()
+        UNPROCESSED = auto()
+        VOICE_PERFORMANCE = auto()
 
     @staticmethod
     def get_apk_path():
@@ -73,6 +88,9 @@ class AudioWorkerApp(AppInterface):
     def send_intent(device, serialno, name, configs={}, tolog=True):
         cmd_arr = [__class__.INTENT_PREFIX, name]
         for key, value in configs.items():
+            if value is None:
+                continue
+
             if type(value) is float:
                 cmd_arr += ["--ef", key]
             elif type(value) is int or type(value) is bool:
@@ -233,12 +251,13 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, dump_buffer_ms=0):
+    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, input_src=None, dump_buffer_ms=0):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
             "sampling-freq": fs,
             "num-channels": nch,
             "pcm-bit-width": bit_depth,
+            "input-src": int(input_src) if input_src is not None else input_src,
             "dump-buffer-ms": dump_buffer_ms
         }
         __class__.send_intent(device, serialno, name, configs)
