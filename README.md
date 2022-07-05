@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.3
+### v1.3.5
+- support using an independent socket to manage wifi adb devices
+
 ### v1.3.4
 - update audioworker.apk: configurable input source for recording
 
