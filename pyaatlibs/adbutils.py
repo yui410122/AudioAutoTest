@@ -69,7 +69,7 @@ class Adb(object):
             Adb.init()
 
     @classmethod
-    def _log(child, msg, tolog):
+    def _log(child, msg, tolog=True):
         if not tolog:
             return
         Logger.log(child.TAG, msg)
