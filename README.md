@@ -5,6 +5,11 @@ This is a auto-testing framework of audio functions for Android devices.
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
 
 ## Release Note
+### v1.4
+### v1.4.0
+- support using an independent socket to manage wifi adb devices
+- keep the identical behavior when the adb multi-socket listening is disabled
+
 ### v1.3
 ### v1.3.5
 - support using an independent socket to manage wifi adb devices
