@@ -39,16 +39,29 @@ class Adb(object):
 
     TAG = "Adb"
     SOCKETS = [
-        None,
-        "tcp:localhost:5038" # default for Wifi ADB devices
+        None
     ]
 
     @staticmethod
     def init(additional_sockets=[]):
+        if Adb.CONFIGS.use_independent_socket_for_wifi_adb:
+            Adb.SOCKETS.append("tcp:localhost:5038")  # default for Wifi ADB devices
+
         Adb.SOCKETS += additional_sockets
         for socket in Adb.SOCKETS:
             Adb._execute("start-server", socket=socket)
         Adb.HAS_BEEN_INIT = True
+
+    @staticmethod
+    def safe_clean_non_default_sockets():
+        devices = Adb.get_devices()
+        sockets_being_used = set(devices.values())
+        for socket in [s for s in Adb.SOCKETS if s is not None]:
+            if socket in sockets_being_used:
+                Adb._log("The socket '{}' is still being used, skip killing it".format(socket))
+                continue
+
+            Adb._execute("kill-server", socket=socket)
 
     @staticmethod
     def _check_init():
