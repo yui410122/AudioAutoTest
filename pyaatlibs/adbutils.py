@@ -21,8 +21,10 @@ class AdbScreenRecordingThread(threading.Thread):
         # shell_cmd = "screenrecord --bit-rate 4000000 /sdcard/screenrecord.mp4"
         shell_cmd = "screenrecord /sdcard/screenrecord.mp4"
         cmd = ["adb", "-s", self.serialno, "shell", shell_cmd]
-        Logger.log("AdbScreenRecordingThread", "threadloop is running with the command '{}'".format(cmd))
-        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        Logger.log(
+            "AdbScreenRecordingThread", "threadloop is running with the command '{}'".format(cmd))
+        self.proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 class Adb(object):
     HAS_BEEN_INIT = False
@@ -73,7 +75,8 @@ class Adb(object):
         child._log("exec: {}".format(cmd), tolog)
         try:
             out, err =  subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(timeout=timeoutsec)
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) \
+                    .communicate(timeout=timeoutsec)
         except:
             out = b""
             err = b"ADB execution timed out"
@@ -241,19 +244,22 @@ class Adb(object):
 
     @classmethod
     def device_fingerprint(child, serialno=None, tolog=True):
-        return child.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
+        return child.execute(
+            ["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_stayon(child, serialno=None, tolog=True, on=None):
         if on == None or type(on) is not bool:
             return
-        return child.execute(["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
+        return child.execute(
+            ["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_keyevent(child, serialno=None, tolog=True, keyevent=None):
         if not keyevent:
             return
-        return child.execute(["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
+        return child.execute(
+            ["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_keyevent_menu(child, serialno=None, tolog=True):
@@ -326,7 +332,9 @@ class AudioAdb(Adb):
     @staticmethod
     def get_stream_volumes(serialno=None, tolog=True):
         out, _ = AudioAdb.execute(["shell", "dumpsys audio"], serialno=serialno, tolog=tolog)
-        lines = [line.strip() if isinstance(line, str) else line.decode("utf-8").strip() for line in out.splitlines()]
+        lines = [line.strip() \
+            if isinstance(line, str) \
+            else line.decode("utf-8").strip() for line in out.splitlines()]
         idices = [idx for idx, line in enumerate(lines) if line.startswith("- STREAM")]
         if len(idices) < 2:
             return None
@@ -367,7 +375,8 @@ class AudioAdb(Adb):
     @staticmethod
     def adj_volume(keycode, times, serialno=None, tolog=True):
         for x in range(times):
-            AudioAdb.execute(["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
+            AudioAdb.execute(
+                ["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
             time.sleep(0.2)
 
     @staticmethod
