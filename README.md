@@ -6,15 +6,15 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.4
-### v1.4.1
+### v1.4.1 (Deleted)
 - fix crashes in Adb.safe_clean_non_default_sockets()
 
-### v1.4.0
+### v1.4.0 (Deleted)
 - support using an independent socket to manage wifi adb devices
 - keep the identical behavior when the adb multi-socket listening is disabled
 
 ### v1.3
-### v1.3.5
+### v1.3.5 (Deleted)
 - support using an independent socket to manage wifi adb devices
 
 ### v1.3.4

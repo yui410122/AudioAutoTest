@@ -21,47 +21,20 @@ class AdbScreenRecordingThread(threading.Thread):
         # shell_cmd = "screenrecord --bit-rate 4000000 /sdcard/screenrecord.mp4"
         shell_cmd = "screenrecord /sdcard/screenrecord.mp4"
         cmd = ["adb", "-s", self.serialno, "shell", shell_cmd]
-        Logger.log(
-            "AdbScreenRecordingThread", "threadloop is running with the command '{}'".format(cmd))
-        self.proc = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        Logger.log("AdbScreenRecordingThread", "threadloop is running with the command '{}'".format(cmd))
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 class Adb(object):
     HAS_BEEN_INIT = False
     SCREEN_RECORDING_THREADS = {}
     SERIAL_TO_IP_INFO = {}
 
-    class Configuration:
-        def __init__(self):
-            self.use_independent_socket_for_wifi_adb = False
-
-    CONFIGS = Configuration()
-
     TAG = "Adb"
-    SOCKETS = [
-        None
-    ]
 
     @staticmethod
-    def init(additional_sockets=[]):
-        if Adb.CONFIGS.use_independent_socket_for_wifi_adb:
-            Adb.SOCKETS.append("tcp:localhost:5038")  # default for Wifi ADB devices
-
-        Adb.SOCKETS += additional_sockets
-        for socket in Adb.SOCKETS:
-            Adb._execute("start-server", socket=socket)
+    def init():
+        Adb._execute("start-server", None)
         Adb.HAS_BEEN_INIT = True
-
-    @staticmethod
-    def safe_clean_non_default_sockets():
-        devices = Adb.get_devices()
-        sockets_being_used = set(devices.values())
-        for socket in [s for s in Adb.SOCKETS if s is not None]:
-            if socket in sockets_being_used:
-                Adb._log("The socket '{}' is still being used, skip killing it".format(socket))
-                continue
-
-            Adb._execute("kill-server", socket=socket)
 
     @staticmethod
     def _check_init():
@@ -69,7 +42,7 @@ class Adb(object):
             Adb.init()
 
     @classmethod
-    def _log(child, msg, tolog=True):
+    def _log(child, msg, tolog):
         if not tolog:
             return
         Logger.log(child.TAG, msg)
@@ -78,7 +51,6 @@ class Adb(object):
     def execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         child._check_init()
 
-        socket = None
         if serialno and not serialno in child.get_devices() and \
             child.is_device_available(serialno=serialno):
             ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
@@ -86,29 +58,22 @@ class Adb(object):
             child._log("use Wifi adb: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
             serialno = ip_addr
 
-            if child.CONFIGS.use_independent_socket_for_wifi_adb:
-                socket = Adb.SOCKETS[1]
-
-        return child._execute(cmd, socket, serialno, tolog, retbyte, timeoutsec)
+        return child._execute(cmd, serialno, tolog, retbyte, timeoutsec)
 
     @classmethod
-    def _execute(child, cmd,
-        socket=None, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
+    def _execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         if not isinstance(cmd, list):
             cmd = [cmd]
 
         cmd_prefix = ["adb"]
-        if socket is not None:
-            cmd_prefix += ["-L", socket]
-
-        if serialno is not None:
+        if serialno:
             cmd_prefix += ["-s", serialno]
 
         cmd = cmd_prefix + cmd
         child._log("exec: {}".format(cmd), tolog)
         try:
-            out, err =  subprocess.Popen(cmd,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(timeout=timeoutsec)
+            out, err =  subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate(timeout=timeoutsec)
         except:
             out = b""
             err = b"ADB execution timed out"
@@ -128,16 +93,10 @@ class Adb(object):
 
     @classmethod
     def get_devices(child, tolog=True):
-        child._check_init()
-
-        devices = {}
-        for socket in Adb.SOCKETS:
-            out, _ = child._execute(["devices"], socket=socket, tolog=tolog)
-            serialnos = list(map(lambda x: x.strip(), out.splitlines()))
-            serialnos = [x.split()[0] \
-                for x in serialnos if len(x) > 0 and x.split()[1] == "device"]
-            devices.update({sn: socket for sn in serialnos})
-
+        out, _ = child.execute(["devices"], tolog=tolog)
+        devices = list(map(lambda x: x.strip(), out.splitlines()))
+        del devices[0]
+        devices = [x.split()[0] for x in devices if len(x) > 0 and x.split()[1] == "device"]
         return devices
 
     @classmethod
@@ -173,77 +132,24 @@ class Adb(object):
         return False
 
     @classmethod
-    def get_wifi_status(child, serialno, tolog=True):
-        out, err = child.execute(["shell", "cmd wifi status"], serialno=serialno, tolog=tolog)
-        if len(err) > 0:
-            child._log("got error: {}".format(err.strip()), tolog)
-            return None
-
-        out = out.strip()
-        child._log("get_wifi_status: ret:\n{}".format(out), tolog)
-
-        if not out.startswith("Wifi is "):
-            child._log("get_wifi_status: not starts with \"Wifi is\".", tolog)
-            return None
-
-        lines = out.splitlines()
-        info = {}
-
-        if len(lines) < 1:
-            return info
-
-        m = re.match("Wifi is (?P<state>\\w+)", lines[0].strip())
-        if m is None:
-            return info
-
-        info["wifi_enabled"] = "true" if m.groupdict()["state"] == "enabled" else "false"
-
-        m = re.search("WifiInfo: .*", out)
-        if m is None:
-            return info
-        detail_str = m.group()
-
-        key_strings = detail_str[len("WifiInfo: "):].split(", ")
-        matches = [re.match("(?P<key>[\\d\\w\\s\\-]+): (?P<value>.*)", s) for s in key_strings]
-        info.update(
-            {d["key"]: d["value"] for d in [m.groupdict() for m in matches if m is not None]})
-
-        for k, v in info.items():
-            try:
-                float(v)
-                info[k] = float(v)
-                continue
-            except:
-                    pass
-            if v.lower() == "true":
-                    info[k] = True
-                    continue
-            if v.lower() == "false":
-                    info[k] = False
-                    continue
-            if v.lower() == "<none>":
-                    info[k] = None
-                    continue
-
-        return info
-
-    @classmethod
     def is_wifi_adb_supported(child, serialno, tolog=True):
         devices = child.get_devices(tolog=tolog)
         if not serialno in devices:
             child._log("device '{}' not found".format(serialno), tolog)
             return False
 
-        wifi_status = child.get_wifi_status(serialno=serialno, tolog=tolog)
-        if wifi_status is None:
-            child._log("failed to get wifi_status.")
+        out, err = child.execute(["shell", "ip addr show wlan0"], serialno=serialno, tolog=tolog)
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
             return False
 
-        if "IP" in wifi_status:
-            m = re.match("/(?P<addr>(\\d+\\.?)+)", wifi_status["IP"])
-            if m is not None:
-                Adb.SERIAL_TO_IP_INFO[serialno] = dict(m.groupdict())
-                return True
+        for line in out.splitlines():
+            m = re.match("\\s*inet (?P<addr>(\\d+\\.?)+)/", line)
+            if not m:
+                continue
+
+            Adb.SERIAL_TO_IP_INFO[serialno] = dict(m.groupdict())
+            return True
 
         if serialno in Adb.SERIAL_TO_IP_INFO:
             del Adb.SERIAL_TO_IP_INFO[serialno]
@@ -251,15 +157,12 @@ class Adb(object):
 
     @classmethod
     def enable_wifi_adb(child, serialno, port=5555, tolog=True):
-        child._check_init()
-
         if not serialno in Adb.SERIAL_TO_IP_INFO \
             and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
             child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
             return False
 
-        socket = Adb.SOCKETS[1] if child.CONFIGS.use_independent_socket_for_wifi_adb else None
-        _, err = child.execute(["tcpip", str(port)], serialno=serialno)
+        _, err = Adb.execute(["tcpip", str(port)], serialno=serialno)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -268,7 +171,7 @@ class Adb(object):
 
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], port)
-        out, err = child._execute(["connect", ip_addr], socket=socket)
+        out, err = child.execute(["connect", ip_addr])
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -282,8 +185,6 @@ class Adb(object):
 
     @classmethod
     def disable_wifi_adb(child, serialno, tolog=True):
-        child._check_init()
-
         if not serialno in Adb.SERIAL_TO_IP_INFO:
             child._log("Wifi adb is not constructed on device '{}'".format(serialno), tolog)
             return False
@@ -291,8 +192,7 @@ class Adb(object):
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
 
-        socket = Adb.SOCKETS[1] if child.CONFIGS.use_independent_socket_for_wifi_adb else None
-        out, err = child._execute(["disconnect", ip_addr], socket=socket)
+        out, err = child.execute(["disconnect", ip_addr])
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -341,22 +241,19 @@ class Adb(object):
 
     @classmethod
     def device_fingerprint(child, serialno=None, tolog=True):
-        return child.execute(
-            ["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
+        return child.execute(["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_stayon(child, serialno=None, tolog=True, on=None):
         if on == None or type(on) is not bool:
             return
-        return child.execute(
-            ["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
+        return child.execute(["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_keyevent(child, serialno=None, tolog=True, keyevent=None):
         if not keyevent:
             return
-        return child.execute(
-            ["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
+        return child.execute(["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
 
     @classmethod
     def device_keyevent_menu(child, serialno=None, tolog=True):
@@ -429,9 +326,7 @@ class AudioAdb(Adb):
     @staticmethod
     def get_stream_volumes(serialno=None, tolog=True):
         out, _ = AudioAdb.execute(["shell", "dumpsys audio"], serialno=serialno, tolog=tolog)
-        lines = [line.strip() \
-            if isinstance(line, str) \
-            else line.decode("utf-8").strip() for line in out.splitlines()]
+        lines = [line.strip() if isinstance(line, str) else line.decode("utf-8").strip() for line in out.splitlines()]
         idices = [idx for idx, line in enumerate(lines) if line.startswith("- STREAM")]
         if len(idices) < 2:
             return None
@@ -472,8 +367,7 @@ class AudioAdb(Adb):
     @staticmethod
     def adj_volume(keycode, times, serialno=None, tolog=True):
         for x in range(times):
-            AudioAdb.execute(
-                ["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
+            AudioAdb.execute(["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
             time.sleep(0.2)
 
     @staticmethod
