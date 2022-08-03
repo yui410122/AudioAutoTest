@@ -135,24 +135,77 @@ class Adb(object):
         return False
 
     @classmethod
+    def get_wifi_status(child, serialno, tolog=True):
+        out, err = child.execute(["shell", "cmd wifi status"], serialno=serialno, tolog=tolog)
+        if len(err) > 0:
+            child._log("got error: {}".format(err.strip()), tolog)
+            return None
+
+        out = out.strip()
+        child._log("get_wifi_status: ret:\n{}".format(out), tolog)
+
+        if not out.startswith("Wifi is "):
+            child._log("get_wifi_status: not starts with \"Wifi is\".", tolog)
+            return None
+
+        lines = out.splitlines()
+        info = {}
+
+        if len(lines) < 1:
+            return info
+
+        m = re.match("Wifi is (?P<state>\\w+)", lines[0].strip())
+        if m is None:
+            return info
+
+        info["wifi_enabled"] = "true" if m.groupdict()["state"] == "enabled" else "false"
+
+        m = re.search("WifiInfo: .*", out)
+        if m is None:
+            return info
+        detail_str = m.group()
+
+        key_strings = detail_str[len("WifiInfo: "):].split(", ")
+        matches = [re.match("(?P<key>[\\d\\w\\s\\-]+): (?P<value>.*)", s) for s in key_strings]
+        info.update(
+            {d["key"]: d["value"] for d in [m.groupdict() for m in matches if m is not None]})
+
+        for k, v in info.items():
+            try:
+                float(v)
+                info[k] = float(v)
+                continue
+            except:
+                pass
+            if v.lower() == "true":
+                info[k] = True
+                continue
+            if v.lower() == "false":
+                info[k] = False
+                continue
+            if v.lower() == "<none>":
+                info[k] = None
+                continue
+
+        return info
+
+    @classmethod
     def is_wifi_adb_supported(child, serialno, tolog=True):
         devices = child.get_devices(tolog=tolog)
         if not serialno in devices:
             child._log("device '{}' not found".format(serialno), tolog)
             return False
 
-        out, err = child.execute(["shell", "ip addr show wlan0"], serialno=serialno, tolog=tolog)
-        if len(err) > 0:
-            child._log("got error: {}".format(err.strip()), tolog)
+        wifi_status = child.get_wifi_status(serialno=serialno, tolog=tolog)
+        if wifi_status is None:
+            child._log("failed to get wifi_status.")
             return False
 
-        for line in out.splitlines():
-            m = re.match("\\s*inet (?P<addr>(\\d+\\.?)+)/", line)
-            if not m:
-                continue
-
-            Adb.SERIAL_TO_IP_INFO[serialno] = dict(m.groupdict())
-            return True
+        if "IP" in wifi_status:
+            m = re.match("/(?P<addr>(\\d+\\.?)+)", wifi_status["IP"])
+            if m is not None:
+                Adb.SERIAL_TO_IP_INFO[serialno] = dict(m.groupdict())
+                return True
 
         if serialno in Adb.SERIAL_TO_IP_INFO:
             del Adb.SERIAL_TO_IP_INFO[serialno]
@@ -160,12 +213,14 @@ class Adb(object):
 
     @classmethod
     def enable_wifi_adb(child, serialno, port=5555, tolog=True):
+        child._check_init()
+
         if not serialno in Adb.SERIAL_TO_IP_INFO \
             and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
             child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
             return False
 
-        _, err = Adb.execute(["tcpip", str(port)], serialno=serialno)
+        _, err = child.execute(["tcpip", str(port)], serialno=serialno)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
