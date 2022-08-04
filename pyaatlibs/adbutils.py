@@ -53,8 +53,8 @@ class Adb(object):
     def execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
         child._check_init()
 
-        if serialno and not serialno in child.get_devices() and \
-            child.is_device_available(serialno=serialno):
+        if serialno and not serialno in child.get_devices(tolog=tolog) and \
+            child.is_device_available(serialno=serialno, tolog=tolog):
             ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
             ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
             child._log("use Wifi adb: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
@@ -116,7 +116,8 @@ class Adb(object):
             if ip_info in Adb.SERIAL_TO_IP_INFO.values():
                 continue
 
-            out, err = child.execute(["shell", "getprop ro.serialno"], serialno=device)
+            out, err = child.execute(
+                ["shell", "getprop ro.serialno"], serialno=device, tolog=tolog)
             if len(err) > 0:
                 continue
 
@@ -220,7 +221,7 @@ class Adb(object):
             child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
             return False
 
-        _, err = child.execute(["tcpip", str(port)], serialno=serialno)
+        _, err = child.execute(["tcpip", str(port)], serialno=serialno, tolog=tolog)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -229,7 +230,7 @@ class Adb(object):
 
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], port)
-        out, err = child.execute(["connect", ip_addr])
+        out, err = child.execute(["connect", ip_addr], tolog=tolog)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -250,7 +251,7 @@ class Adb(object):
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
 
-        out, err = child.execute(["disconnect", ip_addr])
+        out, err = child.execute(["disconnect", ip_addr], tolog=tolog)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -278,7 +279,7 @@ class Adb(object):
         child._log(
             "get_wifi_adb_ip_addr: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
 
-        out, err = child.execute(["shell", "getprop ro.serialno"], serialno=ip_addr)
+        out, err = child.execute(["shell", "getprop ro.serialno"], serialno=ip_addr, tolog=tolog)
         out = out.strip()
         if len(err):
             child._log("get_wifi_adb_ip_addr: get error: {}".format(err), tolog)
@@ -340,7 +341,7 @@ class Adb(object):
     @staticmethod
     def screen_recording_start(serialno=None, tolog=True):
         if not serialno:
-            devices = Adb.get_devices()
+            devices = Adb.get_devices(tolog=tolog)
             if len(devices) == 0:
                 return False
             serialno = devices[0]
@@ -356,7 +357,7 @@ class Adb(object):
     @staticmethod
     def screen_recording_stop(pullto, serialno=None, tolog=True):
         if not serialno:
-            devices = Adb.get_devices()
+            devices = Adb.get_devices(tolog=tolog)
             if len(devices) == 0:
                 return False
             serialno = devices[0]
@@ -370,7 +371,8 @@ class Adb(object):
 
         time.sleep(1)
         if pullto:
-            Adb.execute(["pull", "/sdcard/screenrecord.mp4", pullto], serialno=serialno)
+            Adb.execute(
+                ["pull", "/sdcard/screenrecord.mp4", pullto], serialno=serialno, tolog=tolog)
         return True
 
 try:
