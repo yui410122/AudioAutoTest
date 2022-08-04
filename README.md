@@ -14,6 +14,11 @@ This is a auto-testing framework of audio functions for Android devices.
 - keep the identical behavior when the adb multi-socket listening is disabled
 
 ### v1.3
+### v1.3.6
+- pyaatlibs: adb: fix line length
+- pyaatlibs: adbutils: use "cmd wifi status" instead of "ip addr show wlan0" to check wifi status
+- pyaatlibs: adbutils: suppress logs if tolog is false
+
 ### v1.3.5 (Deleted)
 - support using an independent socket to manage wifi adb devices
 
