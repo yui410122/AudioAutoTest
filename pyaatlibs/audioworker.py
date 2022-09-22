@@ -10,6 +10,32 @@ from pyaatlibs.adbutils import Adb
 from pyaatlibs.appinterface import AppInterface
 from pyaatlibs.audiofunction import DetectionStateListener
 
+# from Android SDK 32
+class RecordInputSrc(IntEnum):
+    DEFAULT = 0
+    MIC = auto()
+    VOICE_UPLINK = auto()
+    VOICE_DOWNLINK = auto()
+    VOICE_CALL = auto()
+    CAMCORDER = auto()
+    VOICE_RECOGNITION = auto()
+    VOICE_COMMUNICATION = auto()
+    REMOTE_SUBMIX = auto()
+    UNPROCESSED = auto()
+    VOICE_PERFORMANCE = auto()
+
+# align with audioworker
+class RecordPerf(IntEnum):
+    NONE = 10
+    POWER_SAVING = auto()
+    LOW_LATENCY = auto()
+
+# align with audioworker
+class RecordApi(IntEnum):
+    NONE = 0
+    OPENSLES = auto()
+    AAUDIO = auto()
+
 class AudioWorkerApp(AppInterface):
     TAG = "AudioWorkerApp"
     APK_PATHS = [
@@ -23,20 +49,6 @@ class AudioWorkerApp(AppInterface):
     MAINACTIVITY = ".activities.MainActivity"
 
     DATA_FOLDER = "/storage/emulated/0/Google-AudioWorker-data"
-
-    # from Android SDK 32
-    class RecordInputSrc(IntEnum):
-        DEFAULT = 0
-        MIC = auto()
-        VOICE_UPLINK = auto()
-        VOICE_DOWNLINK = auto()
-        VOICE_CALL = auto()
-        CAMCORDER = auto()
-        VOICE_RECOGNITION = auto()
-        VOICE_COMMUNICATION = auto()
-        REMOTE_SUBMIX = auto()
-        UNPROCESSED = auto()
-        VOICE_PERFORMANCE = auto()
 
     @staticmethod
     def get_apk_path():
@@ -251,13 +263,15 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, input_src=None, dump_buffer_ms=0):
+    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, perf=None, input_src=None, api=None, dump_buffer_ms=0):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
             "sampling-freq": fs,
             "num-channels": nch,
             "pcm-bit-width": bit_depth,
             "input-src": int(input_src) if input_src is not None else input_src,
+            "audio-perf": int(perf) if perf is not None else perf,
+            "audio-api": int(api) if api is not None else api,
             "dump-buffer-ms": dump_buffer_ms
         }
         __class__.send_intent(device, serialno, name, configs)
