@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.4
+### v1.4.2
+- AudioWorker supports different input sources, APIs, and performance modes
+
 ### v1.4.1 (Deleted)
 - fix crashes in Adb.safe_clean_non_default_sockets()
 
