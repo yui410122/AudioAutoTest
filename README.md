@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.4
+### v1.4.3
+- Update audioworker.apk
+
 ### v1.4.2
 - AudioWorker supports different input sources, APIs, and performance modes
 
