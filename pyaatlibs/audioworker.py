@@ -263,7 +263,7 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, perf=None, input_src=None, api=None, dump_buffer_ms=0):
+    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, perf=None, input_src=None, api=None, dump_buffer_ms=0, task_index=0):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
             "sampling-freq": fs,
@@ -272,22 +272,23 @@ class AudioWorkerApp(AppInterface):
             "input-src": int(input_src) if input_src is not None else input_src,
             "audio-perf": int(perf) if perf is not None else perf,
             "audio-api": int(api) if api is not None else api,
-            "dump-buffer-ms": dump_buffer_ms
+            "dump-buffer-ms": dump_buffer_ms,
+            "task-index" : task_index
         }
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_stop(device=None, serialno=None):
+    def record_stop(device=None, serialno=None, task_index=0):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.stop"
-        __class__.send_intent(device, serialno, name)
+        __class__.send_intent(device, serialno, name, {"task-index": task_index})
 
     @staticmethod
-    def record_dump(device=None, serialno=None, path=None):
+    def record_dump(device=None, serialno=None, path=None, task_index=0):
         if not path:
             return
 
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.dump"
-        __class__.send_intent(device, serialno, name, {"filename": path})
+        __class__.send_intent(device, serialno, name, {"filename": path, "task-index": task_index})
 
     @staticmethod
     def record_detector_register(device=None, serialno=None, dclass=None, params={}):
