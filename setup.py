@@ -26,7 +26,7 @@ install_reqs = [
 
 setuptools.setup(
     name="python-audio-autotest",
-    version="1.4.3",
+    version="1.5",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",
@@ -38,7 +38,7 @@ setuptools.setup(
     packages=packages,
     include_package_data=True,
     package_data={
-        "pyaatlibs": ["apk/*.apk"]
+        "pyaatlibs": ["apk/*.apk", "tests/*.py"]
     },
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -36,6 +36,9 @@ class RecordApi(IntEnum):
     OPENSLES = auto()
     AAUDIO = auto()
 
+class TaskIndex(IntEnum):
+    ALL = -1
+
 class AudioWorkerApp(AppInterface):
     TAG = "AudioWorkerApp"
     APK_PATHS = [
@@ -112,10 +115,14 @@ class AudioWorkerApp(AppInterface):
                 cmd_arr += ["--es", key]
             cmd_arr.append(str(value))
 
-        __class__.device_shell(device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
+        __class__.device_shell(
+            device=device, serialno=serialno, cmd=" ".join(cmd_arr), tolog=tolog)
 
     @staticmethod
-    def playback_nonoffload(device=None, serialno=None, freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
+    def playback_nonoffload(
+        device=None, serialno=None,
+        freqs=[440.], playback_id=0,
+        fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "non-offload",
@@ -130,7 +137,9 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def playback_offload(device=None, serialno=None, freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
+    def playback_offload(
+        device=None, serialno=None,
+        freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
             "type": "offload",
@@ -144,17 +153,21 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def _common_info(device=None, serialno=None, ctype=None, controller=None, tolog=False):
+    def _common_info(
+        device=None, serialno=None, ctype=None, controller=None, tolog=False, extra_params={}):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.info".format(ctype)
         ts = datetime.datetime.timestamp(datetime.datetime.now())
         ts = int(ts * 1000)
         filename = "{}-info.txt".format(ts)
         filepath = "{}/{}/{}".format(__class__.DATA_FOLDER, controller, filename)
-        __class__.send_intent(device, serialno, name, {"filename": filename}, tolog=tolog)
+        configs = {"filename": filename}
+        configs.update(extra_params)
+        __class__.send_intent(device, serialno, name, configs, tolog=tolog)
 
         retry = 10
         while retry > 0:
-            out, err = __class__.device_shell(None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
+            out, err = __class__.device_shell(
+                None, serialno, cmd="cat {}".format(filepath), tolog=tolog)
             if len(out) == 0:
                 time.sleep(0.5)
                 retry -= 1
@@ -182,7 +195,8 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def playback_info(device=None, serialno=None, tolog=False):
-        return __class__._common_info(device, serialno, "playback", "PlaybackController", tolog=tolog)
+        return __class__._common_info(
+            device, serialno, "playback", "PlaybackController", tolog=tolog)
 
     @staticmethod
     def playback_stop(device=None, serialno=None, tolog=False):
@@ -200,19 +214,22 @@ class AudioWorkerApp(AppInterface):
                 __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_info(device=None, serialno=None, tolog=False):
-        info = __class__._common_info(device, serialno, "record", "RecordController", tolog=tolog)
+    def record_info(device=None, serialno=None, task_index=TaskIndex.ALL, tolog=False):
+        task_index = int(task_index)
+        info = __class__._common_info(
+            device, serialno, "record", "RecordController",
+            extra_params={"task-index": task_index}, tolog=tolog)
         if info == None:
             return None
 
-        if len(info) > 1:
-            for key, value in info[1].items():
-                info[1][key] = json.loads(value)
+        for i in range(1, len(info), 2):
+            for key, value in info[i].items():
+                info[i][key] = json.loads(value)
 
         return info
 
     @staticmethod
-    def tx_detector_register(prefix, device, serialno, dclass, params):
+    def tx_detector_register(prefix, device, serialno, dclass, params, task_index=0):
         if not dclass:
             return
         try:
@@ -221,20 +238,27 @@ class AudioWorkerApp(AppInterface):
             __class__.log("params cannot be converted to json string")
             return
 
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.register".format(prefix)
         configs = {
             "class": dclass,
-            "params": params
+            "params": params,
+            "task-index": task_index
         }
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def tx_detector_unregister(prefix, device, serialno, chandle):
+    def tx_detector_unregister(prefix, device, serialno, chandle, task_index=0):
         if not chandle:
             return
 
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.unregister".format(prefix)
-        __class__.send_intent(device, serialno, name, {"class-handle": chandle})
+        configs = {
+            "class-handle": chandle,
+            "task-index": task_index
+        }
+        __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
     def tx_detector_clear(prefix, device, serialno, info_func):
@@ -246,7 +270,7 @@ class AudioWorkerApp(AppInterface):
             __class__.tx_detector_unregister(prefix, device, serialno, chandle)
 
     @staticmethod
-    def tx_detector_set_params(prefix, device, serialno, chandle, params):
+    def tx_detector_set_params(prefix, device, serialno, chandle, params, task_index=0):
         if not chandle:
             return
         try:
@@ -255,15 +279,20 @@ class AudioWorkerApp(AppInterface):
             __class__.log("params cannot be converted to json string")
             return
 
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "{}.detect.setparams".format(prefix)
         configs = {
             "class-handle": chandle,
-            "params": params
+            "params": params,
+            "task-index": task_index
         }
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_start(device=None, serialno=None, fs=16000, nch=2, bit_depth=16, perf=None, input_src=None, api=None, dump_buffer_ms=0, task_index=0):
+    def record_start(
+        device=None, serialno=None, fs=16000, nch=2, bit_depth=16,
+        perf=None, input_src=None, api=None, dump_buffer_ms=1000, task_index=0):
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
         configs = {
             "sampling-freq": fs,
@@ -278,33 +307,44 @@ class AudioWorkerApp(AppInterface):
         __class__.send_intent(device, serialno, name, configs)
 
     @staticmethod
-    def record_stop(device=None, serialno=None, task_index=0):
+    def record_stop(device=None, serialno=None, task_index=TaskIndex.ALL, tolog=False):
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.stop"
-        __class__.send_intent(device, serialno, name, {"task-index": task_index})
+        info = __class__.record_info(device, serialno, task_index, tolog)
+
+        # Each task contributes to 2 elements with the track info and the detector info
+        for idx in range(0, len(info), 2):
+            track_index = info[idx]["params"]["task-index"]
+            if task_index >= 0 and task_index != track_index:
+                continue
+
+            __class__.send_intent(device, serialno, name, {"task-index": track_index})
 
     @staticmethod
     def record_dump(device=None, serialno=None, path=None, task_index=0):
         if not path:
             return
 
+        task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.dump"
         __class__.send_intent(device, serialno, name, {"filename": path, "task-index": task_index})
 
     @staticmethod
-    def record_detector_register(device=None, serialno=None, dclass=None, params={}):
-        __class__.tx_detector_register("record", device, serialno, dclass, params)
+    def record_detector_register(device=None, serialno=None, dclass=None, params={}, task_index=0):
+        __class__.tx_detector_register("record", device, serialno, dclass, params, task_index)
 
     @staticmethod
-    def record_detector_unregister(device=None, serialno=None, chandle=None):
-        __class__.tx_detector_unregister("record", device, serialno, chandle)
+    def record_detector_unregister(device=None, serialno=None, chandle=None, task_index=0):
+        __class__.tx_detector_unregister("record", device, serialno, chandle, task_index)
 
     @staticmethod
     def record_detector_clear(device=None, serialno=None):
         __class__.tx_detector_clear("record", device, serialno, __class__.record_info)
 
     @staticmethod
-    def record_detector_set_params(device=None, serialno=None, chandle=None, params={}):
-        __class__.tx_detector_set_params("record", device, serialno, chandle, params)
+    def record_detector_set_params(
+        device=None, serialno=None, chandle=None, params={}, task_index=0):
+        __class__.tx_detector_set_params("record", device, serialno, chandle, params, task_index)
 
     @staticmethod
     def voip_info(device=None, serialno=None, tolog=False):
@@ -396,9 +436,11 @@ from pyaatlibs.logger import Logger
 
 class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
     def __init__(self, serialno, target_freq,
-        detector_reg_func, detector_unreg_func, detector_setparams_func, info_func, parse_detector_func,
+        detector_reg_func, detector_unreg_func,
+        detector_setparams_func, info_func, parse_detector_func,
         callback=None, listener=None):
-        super(AudioWorkerToneDetectorThread, self).__init__(serialno=serialno, target_freq=target_freq, callback=callback)
+        super(AudioWorkerToneDetectorThread, self).__init__(
+            serialno=serialno, target_freq=target_freq, callback=callback)
         self.serialno = serialno
         self.chandle = None
         self.listener = listener
@@ -433,7 +475,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         #           "target-freq": 440
         #         }
         #       ],
-        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@af8d417",
+        #       "Handle":
+        #           "com.google.audioworker.functions.audio.record.detectors.ToneDetector@af8d417",
         #       "Process Frame Size": 50,
         #       "unit": {
         #         "Process Frame Size": "ms",
@@ -483,7 +526,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         #           "target-freq": 110
         #         }
         #       ],
-        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@ca926e4",
+        #       "Handle":
+        #           "com.google.audioworker.functions.audio.record.detectors.ToneDetector@ca926e4",
         #       "Process Frame Size": 50,
         #       "unit": {
         #         "Process Frame Size": "ms",
@@ -497,7 +541,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         #           "target-freq": 440
         #         }
         #       ],
-        #       "Handle": "com.google.audioworker.functions.audio.record.detectors.ToneDetector@5ea1714",
+        #       "Handle":
+        #           "com.google.audioworker.functions.audio.record.detectors.ToneDetector@5ea1714",
         #       "Process Frame Size": 50,
         #       "unit": {
         #         "Process Frame Size": "ms",
@@ -509,7 +554,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
         # ]
         info = self.info_func(serialno=self.serialno)
         if not info:
-            Logger.log("{}::get_info".format(self.get_tag()), "no active record, null info returned")
+            Logger.log(
+                "{}::get_info".format(self.get_tag()), "no active record, null info returned")
             return
 
         detectors = self.parse_detector_func(info)
@@ -520,7 +566,9 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                     chandle = key
                     break
             if chandle:
-                Logger.log("{}::get_info".format(self.get_tag()), "found detector handle: {} for target {} Hz".format(chandle, self.target_freq))
+                Logger.log(
+                    "{}::get_info".format(self.get_tag()),
+                    "found detector handle: {} for target {} Hz".format(chandle, self.target_freq))
 
         if not chandle:
             Logger.log("{}::get_info".format(self.get_tag()), "no detector handle!")
@@ -534,7 +582,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
             return
 
         self.detector_setparams_func(
-            serialno=self.serialno, chandle=self.chandle, params={"dump-history": str(enable).lower()})
+            serialno=self.serialno, chandle=self.chandle,
+            params={"dump-history": str(enable).lower()})
 
     def set_target_frequency(self, target_freq):
         self.target_freq = target_freq
@@ -579,7 +628,8 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
 
             if active != self.shared_vars["last_state"]:
                 self.push_to_dump(
-                    "the detection state has been changed from {} to {}".format(self.shared_vars["last_state"], active))
+                    "the detection state has been changed from {} to {}".format(
+                        self.shared_vars["last_state"], active))
                 self.shared_vars["last_state"] = active
                 self.shared_vars["start_time"] = t
                 self.shared_vars["tictoc"].toc()
@@ -590,11 +640,14 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
 
             self.shared_vars["state_keep_ms"] += self.shared_vars["tictoc"].toc()
             if self.shared_vars["state_keep_ms"] > 200:
-                event = ToneDetector.Event.TONE_DETECTED if active else ToneDetector.Event.TONE_MISSING
+                event = \
+                    ToneDetector.Event.TONE_DETECTED if active else ToneDetector.Event.TONE_MISSING
                 if self.shared_vars["last_event"] != event:
                     self.shared_vars["last_event"] = event
                     Logger.log(self.get_tag(),
-                        "send_cb({}, {}) on {} Hz".format(t_str, "TONE_DETECTED" if active else "TONE_MISSING", self.target_freq))
+                        "send_cb({}, {}) on {} Hz".format(
+                            t_str, "TONE_DETECTED" if active \
+                            else "TONE_MISSING", self.target_freq))
                     if self.cb != None:
                         self.cb((t_str, event))
                     if isinstance(self.listener, DetectionStateListener):
@@ -611,23 +664,28 @@ class AudioWorkerToneDetectorThread(AATAppToneDetectorThread):
                 self.get_info()
 
             adb_tictoc.tic()
-            msg_in_device, _ = Adb.execute(cmd=["shell", "cat /storage/emulated/0/Google-AudioWorker-data/{}.txt".format(self.chandle)],
+            msg_in_device, _ = Adb.execute(
+                cmd=["shell",
+                    "cat /storage/emulated/0/Google-AudioWorker-data/{}.txt".format(self.chandle)],
                 serialno=self.serialno, tolog=False)
             elapsed = adb_tictoc.toc()
 
             msg_in_device = map(lambda x: x.strip(), msg_in_device.splitlines())
             msg_in_device = [x for x in msg_in_device if self.target_detected(float(x.split()[1]))]
-            self.shared_vars["msg"] = msg_in_device[-1] if len(msg_in_device) > 0 else self.shared_vars["msg"]
+            self.shared_vars["msg"] = \
+                msg_in_device[-1] if len(msg_in_device) > 0 else self.shared_vars["msg"]
 
             if elapsed > self.extra["adb-read-prop-max-elapsed"]:
                 self.extra["adb-read-prop-max-elapsed"] = elapsed
 
             if self.shared_vars["msg"]:
                 try:
-                    self.push_to_dump("{} (adb-shell elapsed: {} ms)".format(self.shared_vars["msg"], elapsed))
+                    self.push_to_dump(
+                        "{} (adb-shell elapsed: {} ms)".format(self.shared_vars["msg"], elapsed))
                     freq_cb(self.shared_vars["msg"])
                 except Exception as e:
-                    Logger.log(self.get_tag(), "crashed in freq_cb('{}')".format(self.shared_vars["msg"]))
+                    Logger.log(
+                        self.get_tag(), "crashed in freq_cb('{}')".format(self.shared_vars["msg"]))
                     Logger.log(self.get_tag(), str(e))
 
                 elapsed = freq_cb_tictoc.toc()

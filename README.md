@@ -5,6 +5,16 @@ This is a auto-testing framework of audio functions for Android devices.
 - For checking the detailed information of APIs, please refer to the [documentation](https://github.com/HW-Lee/AudioAutoTest/blob/master/libs/README.md)
 
 ## Release Note
+### v1.5
+### v1.5
+- Update audioworker.apk (4ca8a47-python-audio-autotest-v1.5)
+- AudioWorker supports concurrent capture
+- PyAAT supports concurrent capture control on AudioWorker
+- Some coding style reformation on audioworker.py
+- Add test scripts to verify the compatibility between AudioWorker and PyAAT
+  - Playback
+  - Record
+
 ### v1.4
 ### v1.4.3
 - Update audioworker.apk
