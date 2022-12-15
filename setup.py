@@ -15,18 +15,18 @@ packages = setuptools.find_packages()
 packages = [package for package in packages if package.startswith("pyaat")]
 
 install_reqs = [
-    "androidviewclient>=20.0.0b3",
-    "numpy>=1.19.4",
-    "scipy>=1.5.4",
-    "scikit-learn>=0.23.2",
-    "matplotlib>=3.3.2",
-    "librosa>=0.8.0",
-    "sounddevice>=0.4.1"
+    "androidviewclient==22.3.1",
+    "numpy==1.20.3",
+    "scipy==1.7.3",
+    "scikit-learn==1.0.2",
+    "matplotlib==3.5.3",
+    "librosa==0.9.2",
+    "sounddevice==0.4.5"
 ]
 
 setuptools.setup(
     name="python-audio-autotest",
-    version="1.5",
+    version="1.5.1",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",

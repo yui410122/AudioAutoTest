@@ -7,6 +7,10 @@ class AppInterface(object):
         Logger.log(child.TAG, msg)
 
     @staticmethod
+    def get_apk_version():
+        raise(NotImplementedError("not implemented"))
+
+    @staticmethod
     def get_apk_path():
         raise(NotImplementedError("not implemented"))
 

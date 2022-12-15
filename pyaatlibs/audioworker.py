@@ -62,6 +62,28 @@ class AudioWorkerApp(AppInterface):
         raise(RuntimeError("no apk file is found."))
 
     @staticmethod
+    def get_apk_version():
+        return "44f0c2c66-python-audio-autotest-v1.5.1"
+
+    @staticmethod
+    def get_version_from_device(serialno=None):
+        if not __class__.installed(serialno=serialno):
+            __class__.log("get_version_from_device: the package is not installed.")
+            return None
+
+        out, _ = Adb.execute(
+            ["shell", "dumpsys package com.google.audioworker | grep versionName"],
+            serialno=serialno)
+
+        return out.strip().partition("versionName=")[-1]
+
+    @classmethod
+    def install(child, grant=False, serialno=None, tolog=True):
+        super().install(grant=grant, serialno=serialno, tolog=tolog)
+        __class__.log(
+            "install: the installed version is '{}'".format(__class__.get_version_from_device()))
+
+    @staticmethod
     def get_launch_component():
         return "{}/{}".format(__class__.PACKAGE, __class__.MAINACTIVITY)
 
@@ -138,7 +160,7 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def playback_offload(
-        device=None, serialno=None,
+        device=None, serialno=None, file="null",
         freqs=[440.], playback_id=0, fs=16000, nch=2, amp=0.6, bit_depth=16):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
@@ -148,7 +170,8 @@ class AudioWorkerApp(AppInterface):
             "sampling-freq": fs,
             "num-channels": nch,
             "amplitude": amp,
-            "pcm-bit-width": bit_depth
+            "pcm-bit-width": bit_depth,
+            "file": file
         }
         __class__.send_intent(device, serialno, name, configs)
 

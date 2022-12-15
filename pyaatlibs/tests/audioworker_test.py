@@ -14,7 +14,7 @@ except:
 
 from pyaatlibs.adbutils import Adb
 
-SHORT_SHA_FMT = "[0-9a-f]{7}"
+SHORT_SHA_FMT = "[0-9a-f]{7,40}"
 VERSION_FMT = "\\d+(\\.\\d+)*"
 
 @pytest.fixture(scope="session")
@@ -31,6 +31,14 @@ def target_version():
         return pyaatlibs.__version__
     except:
         return "1.4.3"  # The first version since the apk had version name
+
+@pytest.fixture(scope="session")
+def skip_version_check(pytestconfig):
+    return pytestconfig.getoption("skip_version_check")
+
+@pytest.fixture(scope="session")
+def skip_function_check(pytestconfig):
+    return pytestconfig.getoption("skip_function_check")
 
 @pytest.fixture(scope="session")
 def dut_info_provided(serialno):
@@ -143,9 +151,12 @@ def test_install(check_options, serialno, apk_path):
     AudioWorkerApp.install(serialno=serialno, grant=True)
     assert AudioWorkerApp.installed(serialno=serialno)
 
-def test_apk_version(check_options, target_version, serialno):
+def test_apk_version(check_options, target_version, serialno, skip_version_check):
     if not any([target_version, serialno]):
         pytest.skip("The information of DuT is not provided.")
+
+    if skip_version_check:
+        pytest.skip("The version check is skipped.")
 
     out, err = Adb.execute(
         ["shell", "dumpsys package com.google.audioworker | grep versionName"], serialno=serialno)
@@ -158,6 +169,7 @@ def test_apk_version(check_options, target_version, serialno):
 
     m = re.match(vname_fmt, out.strip())
     assert m is not None, "The version name '{}' is not valid.".format(out.strip())
+    print(m.groupdict())
     assert m.groupdict()["pyaat_version"] >= target_version
 
 def wait_for_activities(serialno, func, onset=True):
@@ -219,7 +231,7 @@ def run_general_single_playback(serialno, playback_type):
     # Default test
     playback_func(**cfg)
     assert wait_for_playback_activities(serialno=serialno)
-    assert AudioWorkerApp.playback_info(serialno=serialno) == {
+    assert_if_not_subdict({
         playback_type: {
             "0": {
                 "class": "com.google.audioworker.functions.audio.playback.PlaybackStartFunction",
@@ -236,7 +248,7 @@ def run_general_single_playback(serialno, playback_type):
                 }
             }
         }
-    }
+    }, AudioWorkerApp.playback_info(serialno=serialno))
 
     AudioWorkerApp.playback_stop(serialno=serialno)
     assert wait_for_playback_activities(serialno=serialno, onset=False)
@@ -244,7 +256,7 @@ def run_general_single_playback(serialno, playback_type):
     # Specifying playback id
     playback_func(**cfg, playback_id=1)
     assert wait_for_playback_activities(serialno=serialno)
-    assert AudioWorkerApp.playback_info(serialno=serialno) == {
+    assert_if_not_subdict({
         playback_type: {
             "1": {
                 "class": "com.google.audioworker.functions.audio.playback.PlaybackStartFunction",
@@ -261,7 +273,7 @@ def run_general_single_playback(serialno, playback_type):
                 }
             }
         }
-    }
+    }, AudioWorkerApp.playback_info(serialno=serialno))
 
     AudioWorkerApp.playback_stop(serialno=serialno)
     assert wait_for_playback_activities(serialno=serialno, onset=False)
@@ -269,7 +281,7 @@ def run_general_single_playback(serialno, playback_type):
     # Dual frequencies playback
     playback_func(**cfg, freqs=[440, 442])
     assert wait_for_playback_activities(serialno=serialno)
-    assert AudioWorkerApp.playback_info(serialno=serialno) == {
+    assert_if_not_subdict({
         playback_type: {
             "0": {
                 "class": "com.google.audioworker.functions.audio.playback.PlaybackStartFunction",
@@ -286,27 +298,36 @@ def run_general_single_playback(serialno, playback_type):
                 }
             }
         }
-    }
+    }, AudioWorkerApp.playback_info(serialno=serialno))
 
     # Stop
     AudioWorkerApp.playback_stop(serialno=serialno)
     assert wait_for_playback_activities(serialno=serialno, onset=False)
 
-def test_single_nonoffload_playback(check_options, target_version, serialno):
+def test_single_nonoffload_playback(check_options, target_version, skip_function_check, serialno):
     if not any([target_version, serialno]):
         pytest.skip("The information of DuT is not provided.")
+
+    if skip_function_check:
+        pytest.skip("The function check is skipped.")
 
     run_general_single_playback(serialno=serialno, playback_type="non-offload")
 
-def test_single_offload_playback(check_options, target_version, serialno):
+def test_single_offload_playback(check_options, target_version, skip_function_check, serialno):
     if not any([target_version, serialno]):
         pytest.skip("The information of DuT is not provided.")
+
+    if skip_function_check:
+        pytest.skip("The function check is skipped.")
 
     run_general_single_playback(serialno=serialno, playback_type="offload")
 
-def test_single_low_latency_playback(check_options, target_version, serialno):
+def test_single_low_latency_playback(check_options, target_version, skip_function_check, serialno):
     if not any([target_version, serialno]):
         pytest.skip("The information of DuT is not provided.")
+
+    if skip_function_check:
+        pytest.skip("The function check is skipped.")
 
     run_general_single_playback(serialno=serialno, playback_type="low-latency")
 
@@ -326,9 +347,12 @@ DEFAULT_DUMP_MS = {
     "default": 1000,
     "1.4.3": 0
 }
-def test_single_record(check_options, target_version, serialno):
+def test_single_record(check_options, target_version, skip_function_check, serialno):
     if not any([target_version, serialno]):
         pytest.skip("The information of DuT is not provided.")
+
+    if skip_function_check:
+        pytest.skip("The function check is skipped.")
 
     dump_buffer_ms = DEFAULT_DUMP_MS["default"] \
         if not target_version in DEFAULT_DUMP_MS else DEFAULT_DUMP_MS[target_version]
@@ -504,9 +528,12 @@ def test_single_record(check_options, target_version, serialno):
     AudioWorkerApp.record_stop(serialno=serialno)
     assert wait_for_record_activities(serialno=serialno, onset=False)
 
-def test_concurrent_record(check_options, target_version, serialno):
+def test_concurrent_record(check_options, target_version, skip_function_check, serialno):
     if target_version < "1.5":
         pytest.skip("This is only for PyAAT later than v1.5")
+
+    if skip_function_check:
+        pytest.skip("The function check is skipped.")
 
     # Default start
     AudioWorkerApp.record_start(serialno=serialno, task_index=0)
