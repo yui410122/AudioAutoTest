@@ -63,7 +63,7 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def get_apk_version():
-        return "44f0c2c66-python-audio-autotest-v1.5.1"
+        return "ecf0145-python-audio-autotest-v1.5.2"
 
     @staticmethod
     def get_version_from_device(serialno=None):
