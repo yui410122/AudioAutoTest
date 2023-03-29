@@ -6,6 +6,10 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.5
+### v1.5.2
+- Update audioworker.apk (ecf0145-python-audio-autotest-v1.5.2)
+- Update setup.py to compact Python3.10
+
 ### v1.5.1
 - Update audioworker.apk (44f0c2c66-python-audio-autotest-v1.5.1)
 - PlaybackStartFunction supports file playing in offload types (.mp3, .aac)

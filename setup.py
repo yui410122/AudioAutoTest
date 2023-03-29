@@ -1,9 +1,12 @@
 import setuptools
+import sys
 import os
 
 # Note: release commands
 #    $ python3 setup.py bdist_wheel
 #    $ python3 -m twine upload dist/python_audio_autotest-1.2.4-py3-none-any.whl
+
+is_python_310 = sys.version_info >= (3, 10)
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -16,8 +19,8 @@ packages = [package for package in packages if package.startswith("pyaat")]
 
 install_reqs = [
     "androidviewclient==22.3.1",
-    "numpy==1.20.3",
-    "scipy==1.7.3",
+    "numpy==1.20.3" if not is_python_310 else "numpy==1.23.5",
+    "scipy==1.7.3" if not is_python_310 else "scipy==1.10.1",
     "scikit-learn==1.0.2",
     "matplotlib==3.5.3",
     "librosa==0.9.2",
@@ -25,8 +28,8 @@ install_reqs = [
 ]
 
 setuptools.setup(
-    name="python-audio-autotest",
-    version="1.5.1",
+    name="python-audio-autotest{}".format("" if not is_python_310 else "-3.10"),
+    version="1.5.2",
     scripts=[] ,
     author="Hao-Wei Lee",
     author_email="hwinnerlee@gmail.com, hwlee@google.com",
