@@ -6,6 +6,11 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.5
+### v1.5.3
+- Update audioworker.apk (c66b90f-python-audio-autotest-v1.5.3)
+- Add btsco_on option in record_start
+- Add file option in playback_nonoffload
+
 ### v1.5.2
 - Update audioworker.apk (ecf0145-python-audio-autotest-v1.5.2)
 - Update setup.py to compact Python3.10
