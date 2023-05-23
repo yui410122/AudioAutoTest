@@ -63,7 +63,7 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def get_apk_version():
-        return "ecf0145-python-audio-autotest-v1.5.2"
+        return "c66b90f-python-audio-autotest-v1.5.3"
 
     @staticmethod
     def get_version_from_device(serialno=None):
@@ -143,7 +143,7 @@ class AudioWorkerApp(AppInterface):
     @staticmethod
     def playback_nonoffload(
         device=None, serialno=None,
-        freqs=[440.], playback_id=0,
+        freqs=[440.], playback_id=0, file="null",
         fs=16000, nch=2, amp=0.6, bit_depth=16, low_latency_mode=False):
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "playback.start"
         configs = {
@@ -154,7 +154,8 @@ class AudioWorkerApp(AppInterface):
             "num-channels": nch,
             "amplitude": amp,
             "pcm-bit-width": bit_depth,
-            "low-latency-mode": low_latency_mode
+            "low-latency-mode": low_latency_mode,
+            "file": file
         }
         __class__.send_intent(device, serialno, name, configs)
 
@@ -313,7 +314,7 @@ class AudioWorkerApp(AppInterface):
 
     @staticmethod
     def record_start(
-        device=None, serialno=None, fs=16000, nch=2, bit_depth=16,
+        device=None, serialno=None, fs=16000, nch=2, bit_depth=16, btsco_on=True,
         perf=None, input_src=None, api=None, dump_buffer_ms=1000, task_index=0):
         task_index = int(task_index)
         name = __class__.AUDIOWORKER_INTENT_PREFIX + "record.start"
@@ -321,6 +322,7 @@ class AudioWorkerApp(AppInterface):
             "sampling-freq": fs,
             "num-channels": nch,
             "pcm-bit-width": bit_depth,
+            "btsco-on": btsco_on,
             "input-src": int(input_src) if input_src is not None else input_src,
             "audio-perf": int(perf) if perf is not None else perf,
             "audio-api": int(api) if api is not None else api,
