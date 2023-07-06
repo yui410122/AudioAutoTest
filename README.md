@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.5
+### v1.5.4
+- Add timeout support for Adb APIs.
+
 ### v1.5.3
 - Update audioworker.apk (c66b90f-python-audio-autotest-v1.5.3)
 - Add btsco_on option in record_start

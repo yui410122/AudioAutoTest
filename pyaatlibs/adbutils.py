@@ -35,7 +35,7 @@ class Adb(object):
 
     @staticmethod
     def init():
-        Adb._execute("start-server", None)
+        Adb._execute("start-server")
         Adb.HAS_BEEN_INIT = True
 
     @staticmethod
@@ -50,7 +50,7 @@ class Adb(object):
         Logger.log(child.TAG, msg)
 
     @classmethod
-    def execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
+    def execute(child, cmd, serialno=None, tolog=True, timeoutsec=None):
         child._check_init()
 
         if serialno and not serialno in child.get_devices(tolog=tolog) and \
@@ -60,10 +60,10 @@ class Adb(object):
             child._log("use Wifi adb: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
             serialno = ip_addr
 
-        return child._execute(cmd, serialno, tolog, retbyte, timeoutsec)
+        return child._execute(cmd=cmd, serialno=serialno, tolog=tolog, timeoutsec=timeoutsec)
 
     @classmethod
-    def _execute(child, cmd, serialno=None, tolog=True, retbyte=False, timeoutsec=None):
+    def _execute(child, cmd, serialno=None, tolog=True, timeoutsec=None):
         if not isinstance(cmd, list):
             cmd = [cmd]
 
@@ -73,38 +73,23 @@ class Adb(object):
 
         cmd = cmd_prefix + cmd
         child._log("exec: {}".format(cmd), tolog)
-        try:
-            out, err =  subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) \
-                    .communicate(timeout=timeoutsec)
-        except:
-            out = b""
-            err = b"ADB execution timed out"
-
-        if not isinstance(out, str) and not retbyte:
-            try:
-                out = out.decode("utf-8")
-            except:
-                pass
-        if not isinstance(err, str) and not retbyte:
-            try:
-                err = err.decode("utf-8")
-            except:
-                pass
+        out, err =  subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) \
+                .communicate(timeout=timeoutsec)
 
         return out, err
 
     @classmethod
-    def get_devices(child, tolog=True):
-        out, _ = child.execute(["devices"], tolog=tolog)
+    def get_devices(child, **kwargs):
+        out, _ = child.execute(["devices"], **kwargs)
         devices = list(map(lambda x: x.strip(), out.splitlines()))
         del devices[0]
         devices = [x.split()[0] for x in devices if len(x) > 0 and x.split()[1] == "device"]
         return devices
 
     @classmethod
-    def is_device_available(child, serialno, tolog=True):
-        devices = child.get_devices(tolog=tolog)
+    def is_device_available(child, serialno, tolog=True, **kwargs):
+        devices = child.get_devices(tolog=tolog, **kwargs)
 
         # establish unknown ip
         for device in devices:
@@ -117,7 +102,7 @@ class Adb(object):
                 continue
 
             out, err = child.execute(
-                ["shell", "getprop ro.serialno"], serialno=device, tolog=tolog)
+                ["shell", "getprop ro.serialno"], serialno=device, tolog=tolog, **kwargs)
             if len(err) > 0:
                 continue
 
@@ -136,8 +121,9 @@ class Adb(object):
         return False
 
     @classmethod
-    def get_wifi_status(child, serialno, tolog=True):
-        out, err = child.execute(["shell", "cmd wifi status"], serialno=serialno, tolog=tolog)
+    def get_wifi_status(child, serialno, tolog=True, **kwargs):
+        out, err = child.execute(
+            ["shell", "cmd wifi status"], serialno=serialno, tolog=tolog, **kwargs)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return None
@@ -191,13 +177,13 @@ class Adb(object):
         return info
 
     @classmethod
-    def is_wifi_adb_supported(child, serialno, tolog=True):
-        devices = child.get_devices(tolog=tolog)
+    def is_wifi_adb_supported(child, serialno, tolog=True, **kwargs):
+        devices = child.get_devices(tolog=tolog, **kwargs)
         if not serialno in devices:
             child._log("device '{}' not found".format(serialno), tolog)
             return False
 
-        wifi_status = child.get_wifi_status(serialno=serialno, tolog=tolog)
+        wifi_status = child.get_wifi_status(serialno=serialno, tolog=tolog, **kwargs)
         if wifi_status is None:
             child._log("failed to get wifi_status.")
             return False
@@ -213,15 +199,15 @@ class Adb(object):
         return False
 
     @classmethod
-    def enable_wifi_adb(child, serialno, port=5555, tolog=True):
+    def enable_wifi_adb(child, serialno, port=5555, tolog=True, **kwargs):
         child._check_init()
 
         if not serialno in Adb.SERIAL_TO_IP_INFO \
-            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
+            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog, **kwargs):
             child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
             return False
 
-        _, err = child.execute(["tcpip", str(port)], serialno=serialno, tolog=tolog)
+        _, err = child.execute(["tcpip", str(port)], serialno=serialno, tolog=tolog, **kwargs)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -230,7 +216,7 @@ class Adb(object):
 
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], port)
-        out, err = child.execute(["connect", ip_addr], tolog=tolog)
+        out, err = child.execute(["connect", ip_addr], tolog=tolog, **kwargs)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -243,7 +229,7 @@ class Adb(object):
         return True
 
     @classmethod
-    def disable_wifi_adb(child, serialno, tolog=True):
+    def disable_wifi_adb(child, serialno, tolog=True, **kwargs):
         if not serialno in Adb.SERIAL_TO_IP_INFO:
             child._log("Wifi adb is not constructed on device '{}'".format(serialno), tolog)
             return False
@@ -251,7 +237,7 @@ class Adb(object):
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
         ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
 
-        out, err = child.execute(["disconnect", ip_addr], tolog=tolog)
+        out, err = child.execute(["disconnect", ip_addr], tolog=tolog, **kwargs)
         if len(err) > 0:
             child._log("got error: {}".format(err.strip()), tolog)
             return False
@@ -264,9 +250,9 @@ class Adb(object):
         return True
 
     @classmethod
-    def get_wifi_adb_ip_addr(child, serialno, tolog=True):
+    def get_wifi_adb_ip_addr(child, serialno, tolog=True, **kwargs):
         if not serialno in Adb.SERIAL_TO_IP_INFO \
-            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog):
+            and not child.is_wifi_adb_supported(serialno=serialno, tolog=tolog, **kwargs):
             child._log("Wifi adb is not supported on device '{}'".format(serialno), tolog)
             return None
 
@@ -279,7 +265,8 @@ class Adb(object):
         child._log(
             "get_wifi_adb_ip_addr: addr[{}] of serialno '{}'".format(ip_addr, serialno), tolog)
 
-        out, err = child.execute(["shell", "getprop ro.serialno"], serialno=ip_addr, tolog=tolog)
+        out, err = child.execute(
+            ["shell", "getprop ro.serialno"], serialno=ip_addr, tolog=tolog, **kwargs)
         out = out.strip()
         if len(err):
             child._log("get_wifi_adb_ip_addr: get error: {}".format(err), tolog)
@@ -299,44 +286,44 @@ class Adb(object):
             timeoutsec -= 1
 
     @classmethod
-    def device_fingerprint(child, serialno=None, tolog=True):
+    def device_fingerprint(child, serialno=None, **kwargs):
         return child.execute(
-            ["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, tolog=tolog)
+            ["shell", "getprop", "ro.vendor.build.fingerprint"], serialno=serialno, **kwargs)
 
     @classmethod
-    def device_stayon(child, serialno=None, tolog=True, on=None):
+    def device_stayon(child, serialno=None, on=None, **kwargs):
         if on == None or type(on) is not bool:
             return
         return child.execute(
-            ["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, tolog=tolog)
+            ["shell", "svc", "power", "stayon", str(on).lower()], serialno=serialno, **kwargs)
 
     @classmethod
-    def device_keyevent(child, serialno=None, tolog=True, keyevent=None):
+    def device_keyevent(child, serialno=None, keyevent=None, **kwargs):
         if not keyevent:
             return
         return child.execute(
-            ["shell", "input", "keyevent", str(keyevent)], serialno=serialno, tolog=tolog)
+            ["shell", "input", "keyevent", str(keyevent)], serialno=serialno, **kwargs)
 
     @classmethod
-    def device_keyevent_menu(child, serialno=None, tolog=True):
-        return child.device_keyevent(serialno, tolog, "KEYCODE_MENU")
+    def device_keyevent_menu(child, serialno=None, **kwargs):
+        return child.device_keyevent(serialno=serialno, keyevent="KEYCODE_MENU", **kwargs)
 
     @classmethod
-    def device_keyevent_power(child, serialno=None, tolog=True):
-        return child.device_keyevent(serialno, tolog, "KEYCODE_POWER")
+    def device_keyevent_power(child, serialno=None, **kwargs):
+        return child.device_keyevent(serialno=serialno, keyevent="KEYCODE_POWER", **kwargs)
 
     @classmethod
-    def device_lock(child, serialno=None, tolog=True):
+    def device_lock(child, serialno=None, tolog=True, **kwargs):
         child._log("lock the screen", tolog)
-        child.device_stayon(serialno, tolog, on=True)
-        child.device_keyevent_power(serialno, tolog)
-        child.device_stayon(serialno, tolog, on=False)
+        child.device_stayon(serialno=serialno, tolog=tolog, on=True, **kwargs)
+        child.device_keyevent_power(serialno=serialno, tolog=tolog, **kwargs)
+        child.device_stayon(serialno=serialno, tolog=tolog, on=False, **kwargs)
 
     @classmethod
-    def device_unlock(child, serialno=None, tolog=True):
+    def device_unlock(child, serialno=None, tolog=True, **kwargs):
         child._log("unlock the screen", tolog)
-        child.device_stayon(serialno, tolog, on=True)
-        child.device_keyevent_menu(serialno, tolog)
+        child.device_stayon(serialno=serialno, tolog=tolog, on=True, **kwargs)
+        child.device_keyevent_menu(serialno=serialno, tolog=tolog, **kwargs)
 
     @staticmethod
     def screen_recording_start(serialno=None, tolog=True):
@@ -387,8 +374,8 @@ class AudioAdb(Adb):
     TAG = "AudioAdb"
 
     @staticmethod
-    def get_stream_volumes(serialno=None, tolog=True):
-        out, _ = AudioAdb.execute(["shell", "dumpsys audio"], serialno=serialno, tolog=tolog)
+    def get_stream_volumes(serialno=None, **kwargs):
+        out, _ = AudioAdb.execute(["shell", "dumpsys audio"], serialno=serialno, **kwargs)
         lines = [line.strip() \
             if isinstance(line, str) \
             else line.decode("utf-8").strip() for line in out.splitlines()]
@@ -430,17 +417,16 @@ class AudioAdb(Adb):
         return volumes
 
     @staticmethod
-    def adj_volume(keycode, times, serialno=None, tolog=True):
+    def adj_volume(keycode, times, serialno=None, **kwargs):
         for x in range(times):
-            AudioAdb.execute(
-                ["shell", "input keyevent {}".format(keycode)], serialno=serialno, tolog=tolog)
+            AudioAdb.device_keyevent(serialno=serialno, keyevent=keycode, **kwargs)
             time.sleep(0.2)
 
     @staticmethod
-    def inc_volume(serialno=None, tolog=True, volume_steps=1):
-        AudioAdb.adj_volume(serialno=serialno, tolog=tolog, keycode=24, times=volume_steps+1)
+    def inc_volume(serialno=None, volume_steps=1, **kwargs):
+        AudioAdb.adj_volume(serialno=serialno, keycode=24, times=volume_steps+1, **kwargs)
 
     @staticmethod
-    def dec_volume(serialno=None, tolog=True, volume_steps=1):
-        AudioAdb.adj_volume(serialno=serialno, tolog=tolog, keycode=25, times=volume_steps+1)
+    def dec_volume(serialno=None, volume_steps=1, **kwargs):
+        AudioAdb.adj_volume(serialno=serialno, keycode=25, times=volume_steps+1, **kwargs)
 
