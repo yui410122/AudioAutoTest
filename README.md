@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.5
+### v1.5.5
+- Fix the crash when calling Adb.disable_wifi_adb after Adb.is_wifi_adb_supported
+
 ### v1.5.4
 - Add timeout support for Adb APIs.
 

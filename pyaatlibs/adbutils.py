@@ -235,6 +235,13 @@ class Adb(object):
             return False
 
         ip_info = Adb.SERIAL_TO_IP_INFO[serialno]
+
+        if not "port" in ip_info:
+            child._log(
+                ("Wifi adb might not be connected on device '{}', "
+                "the port cannot be found.").format(serialno), tolog)
+            return False
+
         ip_addr = "{}:{}".format(ip_info["addr"], ip_info["port"])
 
         out, err = child.execute(["disconnect", ip_addr], tolog=tolog, **kwargs)
