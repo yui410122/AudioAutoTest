@@ -6,6 +6,9 @@ This is a auto-testing framework of audio functions for Android devices.
 
 ## Release Note
 ### v1.5
+### v1.5.6
+- Update the version of scikit-learn for the compatibility of Python 3.11.4
+
 ### v1.5.5
 - Fix the crash when calling Adb.disable_wifi_adb after Adb.is_wifi_adb_supported
 
